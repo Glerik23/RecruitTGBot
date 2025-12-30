@@ -22,6 +22,13 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
+
+# Testing and Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
 
 # Environment
 .env
@@ -33,6 +40,8 @@ wheels/
 *.swp
 *.swo
 *~
+*.sublime-workspace
+*.sublime-project
 
 # Database
 *.db
@@ -42,16 +51,19 @@ wheels/
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Node
+node_modules/
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Docker
-.dockerignore
+Desktop.ini
+$RECYCLE.BIN/
 
 # Ngrok
 ngrok.log
 .ngrok/
-
-
