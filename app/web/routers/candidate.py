@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.database import get_db
@@ -13,16 +13,32 @@ router = APIRouter(prefix="/candidate", tags=["candidate"])
 
 @router.post("/application")
 async def create_application(
+    request: Request,
     data: ApplicationCreate,
     user = Depends(require_role(UserRole.CANDIDATE)),
     db: Session = Depends(get_db)
 ):
     """Create a new application"""
+    from app.utils.security import application_limiter
+    if not application_limiter.is_allowed(str(user.id)):
+        raise HTTPException(
+            status_code=429, 
+            detail="Ви вже надіслали заявку нещодавно. Будь ласка, зачекайте 5 хвилин."
+        )
     
     application = ApplicationService.create_application(
         db,
         user.id,
         data.dict()
+    )
+    
+    # Notify HR about new application
+    from app.services.notification_service import NotificationService
+    await NotificationService.notify_hr_new_application(
+        request, 
+        db, 
+        application.full_name, 
+        application.position
     )
     
     return {
@@ -85,6 +101,7 @@ async def get_my_interviews(
 
 @router.post("/interviews/select-slot")
 async def select_slot(
+    request: Request,
     data: InterviewConfirm,
     user = Depends(require_role(UserRole.CANDIDATE)),
     db: Session = Depends(get_db)
@@ -94,12 +111,25 @@ async def select_slot(
     selected_date = datetime.fromisoformat(data.selected_date)
     # Using new service method
     try:
-        InterviewService.select_slot(
+        interview = InterviewService.select_slot(
             db,
             data.interview_id,
             user.id,
             selected_date
         )
+        
+        # Notify HR or Interviewer that candidate picked a slot
+        if interview.interviewer and interview.interviewer.telegram_id:
+            from app.services.notification_service import NotificationService
+            datetime_str = selected_date.strftime("%d.%m.%Y о %H:%M")
+            await NotificationService.notify_staff_slot_selected(
+                request,
+                interview.interviewer.telegram_id,
+                interview.application.full_name,
+                interview.application.position,
+                datetime_str,
+                interview.interview_type.value
+            )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     

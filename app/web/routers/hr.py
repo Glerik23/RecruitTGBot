@@ -21,12 +21,13 @@ async def get_hr_applications(
     """Get applications for HR"""
     
     if status:
-        applications = ApplicationService.get_all_applications(db, status=status)
+        applications = ApplicationService.get_all_applications(db, status=status, hr_id=user.id)
     else:
-        applications = ApplicationService.get_pending_applications(db)
+        # For 'pending' (Inbox), we don't pass hr_id because anyone can claim
+        applications = ApplicationService.get_all_applications(db, status="pending")
     
-    # Get counts for tabs
-    counts = ApplicationService.get_status_counts(db)
+    # Get counts for tabs - filtered by ownership
+    counts = ApplicationService.get_status_counts(db, hr_id=user.id)
     
     return {
         "counts": counts,
@@ -39,6 +40,8 @@ async def get_hr_applications(
                 "position": app.position,
                 "experience_years": app.experience_years,
                 "skills": app.skills,
+                "skills_details": app.skills_details,
+                "english_level": app.english_level,
                 "education": app.education,
                 "previous_work": app.previous_work,
                 "portfolio_url": app.portfolio_url,
@@ -78,16 +81,19 @@ async def get_application_detail(
         "position": application.position,
         "experience_years": application.experience_years,
         "skills": application.skills,
+        "skills_details": application.skills_details,
+        "english_level": application.english_level,
         "education": application.education,
         "previous_work": application.previous_work,
         "portfolio_url": application.portfolio_url,
         "additional_info": application.additional_info,
         "status": application.status,
         "rejection_reason": application.rejection_reason,
+        "tech_interviewer_name": application.tech_interviewer.full_name if application.tech_interviewer else None,
         "created_at": application.created_at.isoformat(),
         "feedbacks": [
             {
-                "interviewer_name": f"{f.interviewer.first_name} {f.interviewer.last_name}",
+                "interviewer_name": f.interviewer.full_name,
                 "score": f.score,
                 "pros": f.pros,
                 "cons": f.cons,
@@ -124,10 +130,20 @@ async def accept_application_endpoint(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
     
-    # Send notification via bot
+    # Send notification to candidate
     await NotificationService.notify_application_accepted(
         request,
         application.candidate.telegram_id,
+        application.position
+    )
+
+    # Notify other HRs that this application is taken
+    hr_name = f"{user.first_name} {user.last_name}".strip() or user.username or "HR"
+    await NotificationService.notify_hr_application_claimed(
+        request,
+        db,
+        hr_name,
+        application.full_name,
         application.position
     )
     
@@ -159,16 +175,46 @@ async def reject_application_endpoint(
         raise HTTPException(status_code=404, detail="Application not found")
     
     # Send notification via bot
-    await NotificationService.notify_application_rejected(
+    await NotificationService.notify_candidate_result(
         request,
         application.candidate.telegram_id,
         application.position,
+        "rejected",
         reason
+    )
+    return {
+        "success": True,
+        "message": "Application rejected",
+        "application": {
+            "id": application.id,
+            "status": application.status
+        }
+    }
+
+
+@router.post("/applications/{application_id}/hire")
+async def hire_candidate_endpoint(
+    request: Request,
+    application_id: int,
+    user = Depends(require_role(UserRole.HR)),
+    db: Session = Depends(get_db)
+):
+    """Hire candidate"""
+    application = ApplicationService.hire_candidate(db, application_id, user.id)
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    # Send notification via bot
+    await NotificationService.notify_candidate_result(
+        request,
+        application.candidate.telegram_id,
+        application.position,
+        "hired"
     )
     
     return {
         "success": True,
-        "message": "Application rejected",
+        "message": "Candidate hired",
         "application": {
             "id": application.id,
             "status": application.status
@@ -194,13 +240,26 @@ async def start_screening(
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
         
+    # Location details
+    location_type = data.get("location_type")
+    details = data.get("details", {})
+    
+    loc_enum = None
+    if location_type:
+        try:
+            loc_enum = LocationType(location_type)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid location type")
+
     # Create interview request
     interview = InterviewService.create_scheduling_request(
         db,
         application_id,
-        user.id, # HR is the interviewer here
+        user.id,
         InterviewType.HR_SCREENING,
-        slots
+        slots,
+        loc_enum,
+        details
     )
     
     # Notify candidate about available slots
@@ -210,7 +269,9 @@ async def start_screening(
             app.candidate.telegram_id,
             app.position,
             "hr_screening",
-            slots
+            slots,
+            location_type or "online",
+            details
         )
     
     return {"success": True, "interview_id": interview.id}
@@ -257,6 +318,7 @@ async def finalize_screening(
 
 @router.post("/applications/{application_id}/tech/move")
 async def move_to_tech(
+    request: Request,
     application_id: int,
     data: Dict[str, Any],
     user = Depends(require_role(UserRole.HR)),
@@ -266,10 +328,23 @@ async def move_to_tech(
     mode = data.get("mode") # 'assign' or 'pool'
     interviewer_id = data.get("interviewer_id")
     
+    app = ApplicationService.get_application(db, application_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+
     if mode == "assign":
         if not interviewer_id:
             raise HTTPException(status_code=400, detail="Interviewer ID required for assignment")
-        ApplicationService.assign_tech_interviewer(db, application_id, int(interviewer_id))
+        interviewer = ApplicationService.assign_tech_interviewer(db, application_id, int(interviewer_id))
+        
+        # Notify interviewer
+        if interviewer and interviewer.telegram_id:
+            await NotificationService.notify_interviewer_assigned(
+                request,
+                interviewer.telegram_id,
+                app.full_name,
+                app.position
+            )
     elif mode == "pool":
         ApplicationService.move_to_tech_pool(db, application_id)
     else:
@@ -279,13 +354,14 @@ async def move_to_tech(
 
 @router.post("/applications/{application_id}/assign-interviewer")
 async def assign_interviewer_endpoint(
+    request: Request,
     application_id: int,
     data: Dict[str, Any],
     user = Depends(require_role(UserRole.HR)),
     db: Session = Depends(get_db)
 ):
     """Legacy endpoint: Assign a technical interviewer (Redirects to new logic)"""
-    return await move_to_tech(application_id, {"mode": "assign", "interviewer_id": data.get("interviewer_id")}, user, db)
+    return await move_to_tech(request, application_id, {"mode": "assign", "interviewer_id": data.get("interviewer_id")}, user, db)
 
 
 @router.get("/interviewers")

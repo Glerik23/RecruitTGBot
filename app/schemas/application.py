@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Any
+from app.utils.security import sanitize_html
 
 class ApplicationCreate(BaseModel):
     """Schema for application creation"""
@@ -7,17 +8,38 @@ class ApplicationCreate(BaseModel):
     email: str = Field(..., pattern=r'^[^@]+@[^@]+\.[^@]+$', description="Email Address")
     phone: Optional[str] = Field(None, max_length=50, description="Phone Number")
     position: str = Field(..., min_length=2, max_length=255, description="Position")
-    experience_years: Optional[int] = Field(None, ge=0, le=50, description="Experience in years")
+    experience_years: Optional[float] = Field(None, ge=0, le=70, description="Experience in years")
     skills: Optional[List[str]] = Field(default_factory=list, description="List of skills")
+    skills_details: Optional[List[dict]] = Field(default_factory=list, description="Detailed skills with experience")
+    english_level: Optional[str] = Field(None, max_length=50, description="English Level")
     education: Optional[str] = Field(None, max_length=1000, description="Education")
     previous_work: Optional[str] = Field(None, max_length=2000, description="Previous work experience")
     portfolio_url: Optional[str] = Field(None, max_length=500, description="Portfolio URL")
     additional_info: Optional[str] = Field(None, max_length=2000, description="Additional Information")
     
+    @field_validator('full_name', 'position', 'education', 'previous_work', 'additional_info')
+    @classmethod
+    def sanitize_strings(cls, v):
+        """Sanitize HTML from string fields"""
+        if v and isinstance(v, str):
+            return sanitize_html(v)
+        return v
+
     @field_validator('skills')
     @classmethod
     def validate_skills(cls, v):
         """Validate skills list length"""
         if v and len(v) > 50:
             raise ValueError('Too many skills (max 50)')
+        return v
+
+    @field_validator('skills_details')
+    @classmethod
+    def validate_skills_details(cls, v):
+        """Validate experience in skills details"""
+        if v:
+            for skill in v:
+                exp = skill.get('exp', 0)
+                if exp < 0 or exp > 70:
+                    raise ValueError(f"Experience for {skill.get('name', 'skill')} must be between 0 and 70 years")
         return v

@@ -47,7 +47,9 @@ class Application(Base):
     # Резюме
     position = Column(String(255), nullable=False)  # Позиція, на яку подається
     experience_years = Column(Integer, nullable=True)
-    skills = Column(JSON, nullable=True)  # Список навичок
+    english_level = Column(String(50), nullable=True)  # Рівень англійської (A1, B2, etc.)
+    skills = Column(JSON, nullable=True)  # Основний список навичок (для пошуку)
+    skills_details = Column(JSON, nullable=True)  # Детальний список {name: "Python", exp: 3}
     education = Column(Text, nullable=True)
     previous_work = Column(Text, nullable=True)
     portfolio_url = Column(String(500), nullable=True)

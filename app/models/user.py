@@ -58,6 +58,12 @@ class User(Base):
     hr_applications = relationship("Application", foreign_keys="Application.hr_id", back_populates="hr")
     interviews = relationship("Interview", foreign_keys="Interview.candidate_id", back_populates="candidate")
     
+    @property
+    def full_name(self) -> str:
+        """Повне ім'я користувача без None"""
+        parts = [p for p in [self.first_name, self.last_name] if p]
+        return " ".join(parts) if parts else (self.username or f"user_{self.telegram_id}")
+
     def __repr__(self):
         return f"<User {self.telegram_id} ({self.role.value})>"
 

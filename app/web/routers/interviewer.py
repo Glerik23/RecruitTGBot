@@ -21,13 +21,16 @@ async def get_dashboard_data(
     db: Session = Depends(get_db)
 ):
     """Get dashboard data: assigned applications and pool"""
-    assigned = InterviewerService.get_assigned_applications(db, user.id)
+    # My Candidates: tech_interviewer_id == current_user.id (actively processing)
+    # Filter them to exclude archived ones for the main "My Candidates" list if needed, 
+    # but based on current logic let's keep it simple.
+    assigned = ApplicationService.get_all_applications(db, interviewer_id=user.id)
     
-    # Get pool (Tech pending, no interviewer)
-    pool = db.query(Application).filter(
-        Application.status == ApplicationStatus.TECH_PENDING.value,
-        Application.tech_interviewer_id == None
-    ).order_by(Application.created_at.asc()).all()
+    # Archive: HIRED/REJECTED/CANCELLED where tech_interviewer_id == user.id
+    archive = ApplicationService.get_all_applications(db, status="archive", interviewer_id=user.id)
+    
+    # Pool: tech_pending AND tech_interviewer_id is None
+    pool = ApplicationService.get_all_applications(db, status="pool", interviewer_id=None)
     
     def serialize(app):
         return {
@@ -35,12 +38,17 @@ async def get_dashboard_data(
             "candidate_name": app.full_name,
             "position": app.position,
             "status": app.status,
+            "experience_years": app.experience_years,
+            "skills": app.skills,
+            "skills_details": app.skills_details,
+            "english_level": app.english_level,
             "created_at": app.created_at.isoformat(),
             "tech_interviewer_id": app.tech_interviewer_id
         }
 
     return {
-        "my_candidates": [serialize(app) for app in assigned],
+        "my_candidates": [serialize(app) for app in assigned if app.status not in ApplicationService.STATUS_GROUPS["archive"]],
+        "archive": [serialize(app) for app in archive],
         "pool": [serialize(app) for app in pool]
     }
 
@@ -57,8 +65,10 @@ async def get_application_detail(
         
     # Check if this interviewer is assigned
     if app.tech_interviewer_id != user.id:
-        # Optional: Allow viewing if unassigned? No, strict for now.
-        raise HTTPException(status_code=403, detail="Not assigned to this application")
+        # Allow viewing if it's in the technical pool (unassigned)
+        is_in_pool = (app.status == ApplicationStatus.TECH_PENDING.value and app.tech_interviewer_id is None)
+        if not is_in_pool:
+            raise HTTPException(status_code=403, detail="Доступ заборонено (ви не є власником цієї заявки)")
 
     
     # Fetch active technical interview
@@ -73,7 +83,9 @@ async def get_application_detail(
             "id": interview.id,
             "selected_time": interview.selected_time.isoformat() if interview.selected_time else None,
             "is_confirmed": interview.is_confirmed,
-            "location_type": interview.location_type.value if interview.location_type else None
+            "location_type": interview.location_type.value if interview.location_type else None,
+            "link": interview.meet_link,
+            "address": interview.address
         }
 
     return {
@@ -84,12 +96,27 @@ async def get_application_detail(
         "position": app.position,
         "experience_years": app.experience_years,
         "skills": app.skills,
+        "skills_details": app.skills_details,
+        "english_level": app.english_level,
         "education": app.education,
         "previous_work": app.previous_work,
         "portfolio_url": app.portfolio_url,
         "additional_info": app.additional_info,
         "status": app.status,
         "created_at": app.created_at.isoformat(),
+        "tech_interviewer_id": app.tech_interviewer_id,
+        "tech_interviewer_name": app.tech_interviewer.full_name if app.tech_interviewer else None,
+        "feedbacks": [
+            {
+                "interviewer_name": f.interviewer.full_name,
+                "score": f.score,
+                "pros": f.pros,
+                "cons": f.cons,
+                "summary": f.summary,
+                "created_at": f.created_at.isoformat()
+            }
+            for f in app.feedbacks
+        ] if app.feedbacks else [],
         "active_interview": interview_data
     }
 
@@ -102,7 +129,7 @@ async def get_feedback(
     """Get feedback for an application"""
     # Check if assigned?
     # For now, simplistic check
-    feedback = InterviewerService.get_feedback(db, application_id)
+    feedback = InterviewerService.get_feedback(db, application_id, user.id)
     if not feedback:
         return {"feedback": None}
         
@@ -129,14 +156,47 @@ async def submit_feedback(
     
     feedback = InterviewerService.submit_feedback(db, user.id, application_id, data)
     
-    # Notify HR?
-    # We'd need to find the HR assigned to this app or notify all HRs?
-    # Skipping complex notification logic for now, implementing basic flow.
+    # Notify HR managers
+    app = ApplicationService.get_application(db, application_id)
+    if app:
+        interviewer_name = user.full_name
+        await NotificationService.notify_hr_feedback_submitted(
+            request, 
+            db, 
+            app.full_name, 
+            app.position, 
+            interviewer_name, 
+            feedback.score
+        )
     
     return {
         "success": True,
         "message": "Feedback submitted successfully"
     }
+@router.post("/applications/{application_id}/claim")
+async def claim_application(
+    request: Request,
+    application_id: int,
+    user = Depends(require_role(UserRole.INTERVIEWER)),
+    db: Session = Depends(get_db)
+):
+    """Claim application from pool"""
+    app = ApplicationService.assign_tech_interviewer(db, application_id, user.id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+        
+    # Notify colleagues
+    interviewer_name = f"{user.first_name} {user.last_name}".strip() or user.username or "Експерт"
+    await NotificationService.notify_interviewer_claimed(
+        request,
+        db,
+        interviewer_name,
+        app.full_name,
+        app.position
+    )
+    
+    return {"success": True, "message": "Application claimed"}
+
 @router.get("/pool")
 async def get_pool_applications(
     user = Depends(require_role(UserRole.INTERVIEWER)),
@@ -209,13 +269,25 @@ async def schedule_interview(
         raise HTTPException(status_code=403, detail="Not assigned to this application")
         
     # Create interview request (Technical)
+    location_type = data.get("location_type")
+    details = data.get("details", {})
+    
+    loc_enum = None
+    if location_type:
+        try:
+            loc_enum = LocationType(location_type)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid location type")
+
     try:
         interview = InterviewService.create_scheduling_request(
             db,
             application_id,
             user.id,
             InterviewType.TECHNICAL,
-            slots
+            slots,
+            loc_enum,
+            details
         )
         
         # Notify candidate about available slots
@@ -225,7 +297,9 @@ async def schedule_interview(
                 app.candidate.telegram_id,
                 app.position,
                 "technical",
-                slots
+                slots,
+                location_type or "online",
+                details
             )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -26,16 +26,29 @@ class InterviewerService(BaseService[Feedback]):
         application_id: int,
         data: Dict[str, Any]
     ) -> Feedback:
-        """Зберегти фідбек по кандидату"""
-        feedback = Feedback(
-            application_id=application_id,
-            interviewer_id=interviewer_id,
-            score=data.get("score"),
-            pros=data.get("pros"),
-            cons=data.get("cons"),
-            summary=data.get("summary")
-        )
-        db.add(feedback)
+        """Зберегти або оновити фідбек по кандидату"""
+        feedback = db.query(Feedback).filter(
+            Feedback.application_id == application_id,
+            Feedback.interviewer_id == interviewer_id
+        ).first()
+
+        if feedback:
+            # Update existing
+            feedback.score = data.get("score")
+            feedback.pros = data.get("pros")
+            feedback.cons = data.get("cons")
+            feedback.summary = data.get("summary")
+        else:
+            # Create new
+            feedback = Feedback(
+                application_id=application_id,
+                interviewer_id=interviewer_id,
+                score=data.get("score"),
+                pros=data.get("pros"),
+                cons=data.get("cons"),
+                summary=data.get("summary")
+            )
+            db.add(feedback)
         
         # Update status to TECH_COMPLETED
         application = db.query(Application).get(application_id)
@@ -48,6 +61,9 @@ class InterviewerService(BaseService[Feedback]):
         return feedback
 
     @staticmethod
-    def get_feedback(db: Session, application_id: int) -> Optional[Feedback]:
-        """Отримати фідбек по заявці"""
-        return db.query(Feedback).filter(Feedback.application_id == application_id).first()
+    def get_feedback(db: Session, application_id: int, interviewer_id: int) -> Optional[Feedback]:
+        """Отримати фідбек конкретного інтерв'юера по заявці"""
+        return db.query(Feedback).filter(
+            Feedback.application_id == application_id,
+            Feedback.interviewer_id == interviewer_id
+        ).first()

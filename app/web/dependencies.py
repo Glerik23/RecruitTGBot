@@ -11,6 +11,22 @@ from app.utils.helpers import validate_telegram_id
 def get_user_from_request(request: Request, db: Session = Depends(get_db)):
     """Отримати користувача з запиту (з Telegram WebApp)"""
     telegram_id = request.headers.get("X-Telegram-User-Id")
+    
+    # Спроба отримати з X-TG-Data (якщо фронтенд старий або не оновлений)
+    # Примітка: В ідеалі тут має бути валідація hash, але поки використовуємо ID
+    if not telegram_id:
+        tg_data = request.headers.get("X-TG-Data")
+        if tg_data and "user=" in tg_data:
+            import json
+            from urllib.parse import parse_qs, unquote
+            try:
+                params = parse_qs(tg_data)
+                if 'user' in params:
+                    user_data = json.loads(unquote(params['user'][0]))
+                    telegram_id = str(user_data.get('id'))
+            except Exception:
+                pass
+
     if not telegram_id:
         raise HTTPException(status_code=401, detail="Не авторизовано")
     

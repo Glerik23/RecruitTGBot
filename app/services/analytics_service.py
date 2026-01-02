@@ -213,40 +213,34 @@ class AnalyticsService:
     @staticmethod
     def get_english_level_distribution(db: Session) -> Dict[str, int]:
         """Розподіл за рівнем англійської мови"""
-        applications = db.query(Application).filter(
-            Application.additional_info.isnot(None)
-        ).all()
-        
-        # Патерни для визначення рівня англійської
-        patterns = {
-            "A1": re.compile(r'\b(A1|Beginner|Початковий|початковий)\b', re.IGNORECASE),
-            "A2": re.compile(r'\b(A2|Elementary|Елементарний|елементарний)\b', re.IGNORECASE),
-            "B1": re.compile(r'\b(B1|Intermediate|Середній|середній)\b', re.IGNORECASE),
-            "B2": re.compile(r'\b(B2|Upper-Intermediate|Вище середнього|вище середнього)\b', re.IGNORECASE),
-            "C1": re.compile(r'\b(C1|Advanced|Просунутий|просунутий)\b', re.IGNORECASE),
-            "C2": re.compile(r'\b(C2|Proficient|Вільний|вільний|Native|Носій)\b', re.IGNORECASE),
-        }
+        # Отримуємо всі рівні англійської з БД
+        results = db.query(Application.english_level).all()
         
         levels = {"A1": 0, "A2": 0, "B1": 0, "B2": 0, "C1": 0, "C2": 0, "Не вказано": 0}
         
-        for app in applications:
-            if app.additional_info:
-                text = app.additional_info.lower()
+        # Стандартні рівні для мапінгу (якщо в БД раптом є варіації)
+        level_map = {
+            "a1": "A1", "a2": "A2", "b1": "B1", "b2": "B2", "c1": "C1", "c2": "C2"
+        }
+        
+        for (level,) in results:
+            if not level:
+                levels["Не вказано"] += 1
+                continue
+            
+            clean_level = level.strip().lower()
+            if clean_level in level_map:
+                levels[level_map[clean_level]] += 1
+            else:
+                # На випадок якщо там записано "Intermediate" тощо
                 found = False
-                for level, pattern in patterns.items():
-                    if pattern.search(text):
-                        levels[level] += 1
+                for key, val in level_map.items():
+                    if key in clean_level:
+                        levels[val] += 1
                         found = True
                         break
                 if not found:
                     levels["Не вказано"] += 1
-            else:
-                levels["Не вказано"] += 1
-        
-        # Додаємо заявки без additional_info
-        total_with_info = sum(levels.values()) - levels["Не вказано"]
-        total_applications = db.query(func.count(Application.id)).scalar() or 0
-        levels["Не вказано"] = total_applications - total_with_info
         
         return levels
     
@@ -333,6 +327,18 @@ class AnalyticsService:
         return distribution
     
     @staticmethod
+    def get_rejection_reasons(db: Session) -> Dict[str, int]:
+        """Статистика причин відхилення"""
+        reasons = db.query(Application.rejection_reason).filter(
+            Application.status == ApplicationStatus.REJECTED.value,
+            Application.rejection_reason.isnot(None)
+        ).all()
+        
+        all_reasons = [r[0] for r in reasons if r[0]]
+        reason_counter = Counter(all_reasons)
+        return dict(reason_counter.most_common(10))
+    
+    @staticmethod
     def get_weekly_dynamics(db: Session) -> Dict[str, Any]:
         """Динаміка заявок за тиждень (по днях)"""
         end_date = datetime.utcnow()
@@ -411,14 +417,34 @@ class AnalyticsService:
                 Application.hr_id == hr.id
             ).scalar() or 0
             
+            # Позитивні статуси (що пройшли первинний фільтр)
+            positive_statuses = [
+                ApplicationStatus.ACCEPTED.value, "accepted",
+                ApplicationStatus.SCREENING_PENDING.value,
+                ApplicationStatus.SCREENING_SCHEDULED.value,
+                ApplicationStatus.SCREENING_COMPLETED.value,
+                ApplicationStatus.TECH_PENDING.value,
+                ApplicationStatus.TECH_SCHEDULED.value,
+                ApplicationStatus.TECH_COMPLETED.value,
+                "processing",
+                ApplicationStatus.HIRED.value, "hired"
+            ]
+            
+            # Негативні статуси
+            negative_statuses = [
+                ApplicationStatus.REJECTED.value, "rejected",
+                ApplicationStatus.CANCELLED.value, "cancelled",
+                ApplicationStatus.DECLINED.value, "declined"
+            ]
+
             accepted = db.query(func.count(Application.id)).filter(
                 Application.hr_id == hr.id,
-                Application.status == ApplicationStatus.ACCEPTED.value
+                Application.status.in_(positive_statuses)
             ).scalar() or 0
             
             rejected = db.query(func.count(Application.id)).filter(
                 Application.hr_id == hr.id,
-                Application.status == ApplicationStatus.REJECTED.value
+                Application.status.in_(negative_statuses)
             ).scalar() or 0
             
             # Середній час розгляду для цього HR
@@ -477,6 +503,7 @@ class AnalyticsService:
             "experience_distribution": AnalyticsService.get_experience_distribution(db),
             "weekly_dynamics": AnalyticsService.get_weekly_dynamics(db),
             "monthly_dynamics": AnalyticsService.get_monthly_dynamics(db),
-            "hr_activity": AnalyticsService.get_hr_activity_metrics(db)
+            "hr_activity": AnalyticsService.get_hr_activity_metrics(db),
+            "rejection_reasons": AnalyticsService.get_rejection_reasons(db)
         }
 

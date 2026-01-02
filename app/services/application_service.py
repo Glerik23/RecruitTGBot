@@ -14,9 +14,15 @@ class ApplicationService(BaseService[Application]):
         "pending": [ApplicationStatus.PENDING.value], 
         "processing": [ApplicationStatus.ACCEPTED.value],
         "interviews": [
-            ApplicationStatus.SCREENING_PENDING.value, ApplicationStatus.SCREENING_SCHEDULED.value, 
-            ApplicationStatus.SCREENING_COMPLETED.value, ApplicationStatus.TECH_PENDING.value,
-            ApplicationStatus.TECH_SCHEDULED.value, ApplicationStatus.TECH_COMPLETED.value
+            ApplicationStatus.SCREENING_PENDING.value
+        ],
+        "tech": [
+            ApplicationStatus.TECH_PENDING.value,
+            ApplicationStatus.TECH_SCHEDULED.value,
+            ApplicationStatus.TECH_COMPLETED.value
+        ],
+        "planned": [
+            ApplicationStatus.SCREENING_SCHEDULED.value
         ],
         "approved": [ApplicationStatus.HIRED.value],
         "rejected": [ApplicationStatus.REJECTED.value, ApplicationStatus.DECLINED.value, ApplicationStatus.CANCELLED.value],
@@ -43,6 +49,8 @@ class ApplicationService(BaseService[Application]):
             position=data.get("position"),
             experience_years=data.get("experience_years"),
             skills=data.get("skills", []),
+            skills_details=data.get("skills_details", []),
+            english_level=data.get("english_level"),
             education=data.get("education"),
             previous_work=data.get("previous_work"),
             portfolio_url=data.get("portfolio_url"),
@@ -76,47 +84,96 @@ class ApplicationService(BaseService[Application]):
 
 
     @staticmethod
-    def get_all_applications(db: Session, status: Optional[str] = None) -> List[Application]:
-        """Отримати всі заявки з опціональним фільтром по статусу (або групі статусів)"""
+    def get_all_applications(
+        db: Session, 
+        status: Optional[str] = None,
+        hr_id: Optional[int] = None,
+        interviewer_id: Optional[int] = None
+    ) -> List[Application]:
+        """Отримати всі заявки з фільтрами по статусу та власнику"""
         query = db.query(Application)
         
-        if status and status != "all":
-            # Map frontend filter names to status lists
+        # Ownership filter
+        if hr_id:
+            # HR sees specific owned OR pending (if they want to claim)
+            # Actually, per requirements: 
+            # - Inbox (pending): visible to all HRs
+            # - Processing/Interviews: visible only to owner
+            if status == "pending":
+                query = query.filter(Application.status == ApplicationStatus.PENDING.value)
+            else:
+                query = query.filter(Application.hr_id == hr_id)
+        elif interviewer_id:
+            # Interviewer sees "My Candidates" (ID match)
+            # OR "Pool" (tech_pending AND ID is None)
+            if status == "pool":
+                query = query.filter(
+                    Application.status == ApplicationStatus.TECH_PENDING.value,
+                    Application.tech_interviewer_id == None
+                )
+            else:
+                query = query.filter(Application.tech_interviewer_id == interviewer_id)
+        
+        # Status filter (standard)
+        if status and status not in ["all", "pending", "pool"]:
             if status in ApplicationService.STATUS_GROUPS:
                 query = query.filter(Application.status.in_(ApplicationService.STATUS_GROUPS[status]))
             else:
-                # Fallback to single status match
                 try:
-                    # Try to find matching enum member
                     status_enum = ApplicationStatus(status)
                     query = query.filter(Application.status == status_enum.value)
                 except ValueError:
-                    # If invalid status, don't filter (or handle error)
                     pass
                 
         return query.order_by(Application.created_at.desc()).all()
                 
     @staticmethod
-    def get_status_counts(db: Session) -> Dict[str, int]:
-        """Отримати кількість заявок для кожної групи статусів"""
-        counts = {}
-        # This is a bit inefficient (multiple queries instead of one GROUP BY), but safer with the complicated group logic
-        # and small scale. For larger scale, refactor to GROUP BY status and then sum in python.
-        
-        # Optimization: Fetch all status counts in one query
+    def get_status_counts(
+        db: Session, 
+        hr_id: Optional[int] = None,
+        interviewer_id: Optional[int] = None
+    ) -> Dict[str, int]:
+        """Отримати кількість заявок для кожної групи статусів з урахуванням власності"""
         from sqlalchemy import func
-        results = db.query(Application.status, func.count(Application.status)).group_by(Application.status).all()
+        
+        # Base query for counts
+        query = db.query(Application.status, func.count(Application.status))
+        
+        # Apply ownership filtering for counts as well
+        if hr_id:
+            # For HR: counts for owned apps + total pending (which they can claim)
+            # Actually, standard tabs in HR dashboard should probably show TOTAL pending 
+            # and OWNED for others.
+            pass # We will handle filtering inside the loop for specific groups
+            
+        results = query.group_by(Application.status).all()
         status_map = {r[0]: r[1] for r in results}
         
-        # Calculate counts for each group
+        # More precise counts if filtered
+        counts = {}
         for group_name, statuses in ApplicationService.STATUS_GROUPS.items():
-            count = 0
-            for s in statuses:
-                count += status_map.get(s, 0)
-            counts[group_name] = count
+            if hr_id and group_name != "pending":
+                # Regular tabs (processing, interviews, etc) show only OWNED
+                count = db.query(func.count(Application.id)).filter(
+                    Application.status.in_(statuses),
+                    Application.hr_id == hr_id
+                ).scalar()
+            elif interviewer_id and group_name == "tech":
+                 # Interviewer counts their OWN tech apps
+                 count = db.query(func.count(Application.id)).filter(
+                    Application.status.in_(statuses),
+                    Application.tech_interviewer_id == interviewer_id
+                ).scalar()
+            else:
+                # Inbox (pending) or General Pool or Standard
+                count = 0
+                for s in statuses:
+                    count += status_map.get(s, 0)
+            
+            counts[group_name] = count or 0
             
         # Total count
-        counts["all"] = sum(status_map.values())
+        counts["all"] = sum(counts.values()) if not hr_id else counts.get("pending", 0) + sum(v for k,v in counts.items() if k != "pending" and k != "all")
         
         return counts
 
@@ -243,6 +300,23 @@ class ApplicationService(BaseService[Application]):
         # But it is now "claimed".
         # Let's keep status as TECH_PENDING but with ID assigned. 
         # Or maybe introduce 'TECH_ASSIGNED'? For now TECH_PENDING + ID is enough to filter "My Assignments".
+        
+        return BaseService.commit_and_refresh(db, application)
+
+    @staticmethod
+    def hire_candidate(
+        db: Session,
+        application_id: int,
+        hr_id: int
+    ) -> Optional[Application]:
+        """Остаточно прийняти кандидата на роботу (Hired)"""
+        application = db.query(Application).filter(Application.id == application_id).first()
+        if not application:
+            return None
+        
+        application.status = ApplicationStatus.HIRED.value
+        application.hr_id = hr_id
+        application.reviewed_at = datetime.now(timezone.utc)
         
         return BaseService.commit_and_refresh(db, application)
 

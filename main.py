@@ -6,7 +6,7 @@ from app.config import settings
 from app.database import init_db
 # Import new routers
 from app.web.routers import candidate_router, hr_router, analyst_router, director_router, interviewer_router
-from app.web.routers.general import router as general_router
+from app.web.routers.general import api_router, spa_router
 from app.bot.bot import create_bot_application
 from app.utils.ngrok import setup_ngrok, close_ngrok
 from contextlib import asynccontextmanager
@@ -82,8 +82,10 @@ app.include_router(hr_router, prefix="/web")
 app.include_router(analyst_router, prefix="/web")
 app.include_router(director_router, prefix="/web")
 app.include_router(interviewer_router, prefix="/web")
-# General router (SPA serving, root, health) - no prefix or minimal prefix
-app.include_router(general_router)
+# General API routes (me, health)
+app.include_router(api_router, prefix="/web")
+# SPA routes (serving index.html) - keep at the end
+app.include_router(spa_router)
 
 
 if __name__ == "__main__":

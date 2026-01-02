@@ -16,7 +16,9 @@ class InterviewService(BaseService[Interview]):
         application_id: int,
         interviewer_id: int,
         interview_type: InterviewType,
-        available_slots: List[Dict[str, str]] # [{'start': iso, 'end': iso}]
+        available_slots: List[Dict[str, str]], # [{'start': iso, 'end': iso}]
+        location_type: Optional[LocationType] = None,
+        details: Optional[Dict[str, str]] = None
     ) -> Interview:
         """Створити запит на планування зустрічі"""
         if not available_slots:
@@ -33,6 +35,9 @@ class InterviewService(BaseService[Interview]):
             interviewer_id=interviewer_id,
             interview_type=interview_type,
             available_slots=available_slots,
+            location_type=location_type,
+            meet_link=details.get("meet_link") if details else None,
+            address=details.get("address") if details else None,
             is_confirmed=False
         )
         db.add(interview)
@@ -41,12 +46,7 @@ class InterviewService(BaseService[Interview]):
         if interview_type == InterviewType.HR_SCREENING:
             app.status = ApplicationStatus.SCREENING_PENDING.value
         elif interview_type == InterviewType.TECHNICAL:
-            # If creating a specific tech interview request
-            # Usually tech interview is scheduled from pool or directly
             app.status = ApplicationStatus.TECH_PENDING.value 
-            
-            # If we wanted to auto-confirm, we would need selected_time passed in.
-            # But since we are passing available_slots, it is a request. 
         
         db.commit()
         db.refresh(interview)
@@ -73,10 +73,15 @@ class InterviewService(BaseService[Interview]):
         if interview.candidate_id != user_id:
             raise BusinessError("Not authorized to schedule this interview")
             
-        # Logic to validate slot_start is in available_slots could be added here
-        
         interview.selected_time = slot_start
-        # Candidate picked time. Now waiting for conformation (link/address) from Host.
+        
+        # Auto-confirm if location details are already present
+        if interview.location_type:
+            interview.is_confirmed = True
+            if interview.interview_type == InterviewType.HR_SCREENING:
+                interview.application.status = ApplicationStatus.SCREENING_SCHEDULED.value
+            elif interview.interview_type == InterviewType.TECHNICAL:
+                interview.application.status = ApplicationStatus.TECH_SCHEDULED.value
         
         db.commit()
         db.refresh(interview)
