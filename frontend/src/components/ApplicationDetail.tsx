@@ -871,9 +871,26 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
 
                         // Interviewer Workflow
                         if (isInterviewer) {
-                            // 1. Leave feedback for tech_scheduled or tech_completed
-                            if (['tech_scheduled', 'tech_completed'].includes(s)) {
+                            // Archive logic: if status is in hired/rejected/cancelled/tech_completed, no actions allowed
+                            if (['hired', 'rejected', 'cancelled', 'tech_completed'].includes(s)) {
+                                return null;
+                            }
+
+                            // 1. Claim application from pool (tech_pending and unassigned)
+                            if (s === 'tech_pending' && !application.tech_interviewer_id) {
                                 return renderActionButtons(
+                                    <Button className="w-full py-4 text-sm font-bold shadow-lg shadow-primary/20" onClick={handleClaim}>
+                                        📥 Взяти в роботу
+                                    </Button>
+                                );
+                            }
+
+                            // 2. Assigned Interviewer: Feedback and Scheduling/Update
+                            if (application.tech_interviewer_id) {
+                                const hasSelectedTime = application.active_interview?.selected_time;
+                                const isConfirmed = application.active_interview?.is_confirmed;
+
+                                const feedbackBtn = ['tech_scheduled', 'tech_completed'].includes(s) && (
                                     <Button
                                         className="w-full py-4 text-sm font-bold flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-indigo-600 border-none shadow-lg shadow-primary/20"
                                         onClick={() => setShowFeedbackForm(true)}
@@ -883,83 +900,84 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                                             : '📝 Залишити тех-фідбек'}
                                     </Button>
                                 );
-                            }
 
-                            // 2. Claim application from pool (tech_pending and unassigned)
-                            if (s === 'tech_pending' && !application.tech_interviewer_id) {
-                                return renderActionButtons(
-                                    <Button className="w-full py-4 text-sm font-bold shadow-lg shadow-primary/20" onClick={handleClaim}>
-                                        📥 Взяти в роботу
+                                const updateBtn = (size: 'sm' | 'lg' = 'sm') => (
+                                    <Button
+                                        variant="secondary"
+                                        className={size === 'sm' ? "w-full py-2 text-xs font-bold opacity-80" : "w-full py-4 text-sm font-bold opacity-80"}
+                                        onClick={() => {
+                                            const interview = application.active_interview;
+                                            if (interview) {
+                                                setLocationType(interview.location_type || 'online');
+                                                setDetails({
+                                                    meet_link: interview.link || interview.meet_link || '',
+                                                    address: interview.address || ''
+                                                });
+                                            }
+                                            setShowFinalize(true);
+                                        }}
+                                    >
+                                        ✏️ Оновити деталі зустрічі
                                     </Button>
                                 );
-                            }
-
-                            // 3. Assigned Interviewer: Confirm/Update meeting for tech_pending or tech_scheduled
-                            if (['tech_pending', 'tech_scheduled'].includes(s) && application.tech_interviewer_id) {
-                                const hasSelectedTime = application.active_interview?.selected_time;
-                                const isConfirmed = application.active_interview?.is_confirmed;
 
                                 if (isConfirmed) {
                                     return renderActionButtons(
                                         <div className="flex flex-col gap-2">
-                                            <Button
-                                                variant="secondary"
-                                                className="w-full py-4 text-sm font-bold opacity-80"
-                                                onClick={() => {
-                                                    const interview = application.active_interview;
-                                                    if (interview) {
-                                                        setLocationType(interview.location_type || 'online');
-                                                        setDetails({
-                                                            meet_link: interview.meet_link || '',
-                                                            address: interview.address || ''
-                                                        });
-                                                    }
-                                                    setShowFinalize(true);
-                                                }}
-                                            >
-                                                ✏️ Оновити деталі зустрічі
-                                            </Button>
+                                            {feedbackBtn}
+                                            {updateBtn(feedbackBtn ? 'sm' : 'lg')}
                                         </div>
                                     );
                                 }
 
                                 if (hasSelectedTime) {
                                     return renderActionButtons(
-                                        <Button
-                                            className="w-full py-4 text-sm font-bold shadow-lg shadow-primary/20"
-                                            onClick={() => {
-                                                const interview = application.active_interview;
-                                                if (interview) {
-                                                    setLocationType(interview.location_type || 'online');
-                                                    setDetails({
-                                                        meet_link: interview.meet_link || '',
-                                                        address: interview.address || ''
-                                                    });
-                                                }
-                                                setShowFinalize(true);
-                                            }}
-                                        >
-                                            📍 Підтвердити зустріч
-                                        </Button>
-                                    );
-                                }
-                                if (application.active_interview) {
-                                    return renderActionButtons(
-                                        <div className="glass p-4 rounded-2xl text-center space-y-1">
-                                            <p className="text-sm font-bold text-hint">⏳ Очікуємо вибору часу</p>
-                                            <p className="text-[10px] opacity-60">Кандидат отримав посилання на вибір слотів</p>
+                                        <div className="flex flex-col gap-2">
+                                            <Button
+                                                className="w-full py-4 text-sm font-bold shadow-lg shadow-primary/20"
+                                                onClick={() => {
+                                                    const interview = application.active_interview;
+                                                    if (interview) {
+                                                        setLocationType(interview.location_type || 'online');
+                                                        setDetails({
+                                                            meet_link: interview.link || interview.meet_link || '',
+                                                            address: interview.address || ''
+                                                        });
+                                                    }
+                                                    setShowFinalize(true);
+                                                }}
+                                            >
+                                                📍 Підтвердити зустріч
+                                            </Button>
+                                            {updateBtn('sm')}
                                         </div>
                                     );
                                 }
 
-                                return renderActionButtons(
-                                    <Button
-                                        className="w-full py-4 text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
-                                        onClick={() => setShowSlotPicker(true)}
-                                    >
-                                        🗓️ Запросити на тех-інтерв'ю
-                                    </Button>
-                                );
+                                if (application.active_interview) {
+                                    return renderActionButtons(
+                                        <div className="flex flex-col gap-2">
+                                            <div className="glass p-4 rounded-2xl text-center space-y-1">
+                                                <p className="text-sm font-bold text-hint">⏳ Очікуємо вибору часу</p>
+                                                <p className="text-[10px] opacity-60">Кандидат отримав посилання на вибір слотів</p>
+                                            </div>
+                                            {updateBtn('sm')}
+                                        </div>
+                                    );
+                                }
+
+                                if (s === 'tech_pending') {
+                                    return renderActionButtons(
+                                        <Button
+                                            className="w-full py-4 text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                            onClick={() => setShowSlotPicker(true)}
+                                        >
+                                            🗓️ Запросити на тех-інтерв'ю
+                                        </Button>
+                                    );
+                                }
+
+                                if (feedbackBtn) return renderActionButtons(feedbackBtn);
                             }
                         }
 
@@ -1090,7 +1108,7 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                 onConfirm={confirmAccept}
                 onCancel={() => setShowAcceptConfirm(false)}
             />
-        </div>,
+        </div >,
         document.body
     );
 };

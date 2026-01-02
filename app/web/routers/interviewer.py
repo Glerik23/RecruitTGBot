@@ -161,6 +161,7 @@ async def submit_feedback(
         await NotificationService.notify_hr_feedback_submitted(
             request, 
             db, 
+            application_id,
             app.full_name, 
             app.position, 
             interviewer_name, 

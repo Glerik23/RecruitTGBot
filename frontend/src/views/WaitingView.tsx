@@ -69,6 +69,7 @@ export const WaitingView: React.FC = () => {
             'hired': 'Найнято!',
             'cancelled': 'Скасовано',
             'completed': 'Завершено',
+            'tech_completed': 'Тех. етап завершено',
         };
         const s = status.toLowerCase();
         return map[s] || status;
@@ -84,6 +85,7 @@ export const WaitingView: React.FC = () => {
             'tech_scheduled': 'Технічне інтерв\'ю заплановано. Готуйтеся до цікавих запитань!',
             'rejected': 'На жаль, ми не можемо запропонувати вам позицію на даний момент.',
             'hired': 'Вітаємо! Ви прийняті на роботу. Ласкаво просимо до команди!',
+            'tech_completed': 'Технічне інтерв\'ю завершено. Очікуйте на фінальне рішення від HR.',
         };
         return map[status.toLowerCase()] || 'Статус вашої заявки оновлено.';
     };

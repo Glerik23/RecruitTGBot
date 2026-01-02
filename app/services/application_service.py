@@ -32,7 +32,8 @@ class ApplicationService(BaseService[Application]):
             ApplicationStatus.HIRED,
             ApplicationStatus.REJECTED, 
             ApplicationStatus.DECLINED, 
-            ApplicationStatus.CANCELLED
+            ApplicationStatus.CANCELLED,
+            ApplicationStatus.TECH_COMPLETED
         ]
     }
 

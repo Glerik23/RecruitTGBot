@@ -283,16 +283,25 @@ class NotificationService:
     async def notify_hr_feedback_submitted(
         request: Request,
         db: Session,
+        application_id: int,
         candidate_name: str,
         position: str,
         interviewer_name: str,
         score: int
     ) -> None:
-        """Повідомити всіх HR про те, що тех. спеціаліст залишив фідбек"""
+        """Повідомити HR про те, що тех. спеціаліст залишив фідбек"""
         from app.services.user_service import UserService
         from app.models.user import UserRole
+        from app.models.application import Application
         
-        hrs = UserService.get_users_by_role(db, UserRole.HR)
+        app = db.query(Application).get(application_id)
+        hrs_to_notify = []
+        
+        if app and app.hr and app.hr.telegram_id:
+            hrs_to_notify = [app.hr]
+        else:
+            hrs_to_notify = UserService.get_users_by_role(db, UserRole.HR)
+            
         score_icon = "🟢" if score >= 8 else "🟡" if score >= 5 else "🔴"
         
         message = (
@@ -303,7 +312,8 @@ class NotificationService:
             f"{score_icon} **Оцінка:** {score}/10\n\n"
             "Перегляньте деталі та прийміть фінальне рішення в HR панелі. ⚖️"
         )
-        for hr in hrs:
+        
+        for hr in hrs_to_notify:
             if hr.telegram_id:
                 await NotificationService.send_message(request, hr.telegram_id, message)
 
