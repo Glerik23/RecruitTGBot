@@ -97,7 +97,7 @@ docker-compose exec postgres psql -U postgres -d recruit_tg
 UPDATE users SET role = 'candidate' WHERE telegram_id = 123456789;
 ```
 
-**Доступні ролі:** `candidate`, `hr`, `analyst`, `director`
+**Доступні ролі:** `candidate`, `hr`, `interviewer`, `analyst`, `director`
 
 ## 6. Тестування
 
