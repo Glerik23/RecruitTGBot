@@ -13,8 +13,8 @@ interface InterviewerApp {
 }
 
 const TABS = [
-    { id: 'my', label: 'Мої кандидати' },
     { id: 'pool', label: 'Загальний пул' },
+    { id: 'my', label: 'Мої кандидати' },
     { id: 'archive', label: 'Архів' }
 ] as const;
 
@@ -122,7 +122,15 @@ export const InterviewerDashboard: React.FC = () => {
                 <ApplicationDetail
                     id={selectedId}
                     onClose={() => setSelectedId(null)}
-                    onUpdate={fetchData}
+                    onUpdate={(newTab?: string) => {
+                        fetchData();
+                        if (newTab === 'my' || newTab === 'pool' || newTab === 'archive') {
+                            setActiveTab(newTab as TabId);
+                        } else if (activeTab === 'pool') {
+                            // If we were in pool and something updated (like claim), move to 'my'
+                            setActiveTab('my');
+                        }
+                    }}
                     role="interviewer"
                 />
             )}

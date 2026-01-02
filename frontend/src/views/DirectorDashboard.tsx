@@ -283,27 +283,27 @@ const renderOverview = (data: any) => {
                     value={data.overview.total_applications}
                     label="Заявки"
                     trend="+12%"
-                    labelClassName="text-white/70"
+                    labelClassName="text-white/90"
                 />
                 <MetricCard
                     icon="💼"
                     value={data.overview.hired}
                     label="Найми"
                     color="text-green-500"
-                    labelClassName="text-white/70"
+                    labelClassName="text-white/90"
                 />
                 <MetricCard
                     icon="⌛"
                     value={`${data.time_to_review.average_hours}г`}
                     label="Час розгляду"
-                    labelClassName="text-white/70"
+                    labelClassName="text-white/90"
                 />
                 <MetricCard
                     icon="📈"
-                    value={`${data.conversion_metrics.application_to_hired}%`}
+                    value={`${data.conversion_metrics.overall_conversion}%`}
                     label="Конверсія"
                     color="text-primary"
-                    labelClassName="text-white/70"
+                    labelClassName="text-white/90"
                 />
             </div>
 
@@ -342,14 +342,14 @@ const renderOverview = (data: any) => {
                 <h3 className="text-sm font-black uppercase tracking-widest text-white/80">Топ рекрутерів</h3>
                 <div className="space-y-2">
                     {data.hr_activity.hr_details.slice(0, 3).map((hr: any, idx: number) => (
-                        <div key={hr.hr_id} className="flex justify-between items-center bg-secondary/20 p-4 rounded-2xl border border-white/5">
+                        <div key={hr.hr_id} className="flex justify-between items-center bg-secondary/40 p-5 rounded-2xl border border-white/20 shadow-lg backdrop-blur-sm group hover:bg-white/5 transition-all">
                             <div className="flex items-center gap-3">
                                 <span className="text-xs font-mono text-white/40">#{idx + 1}</span>
-                                <span className="font-bold text-sm text-white">{hr.hr_name}</span>
+                                <span className="font-black text-sm text-white group-hover:text-primary transition-colors">{hr.hr_name}</span>
                             </div>
-                            <div className="flex gap-3 items-center">
-                                <Badge variant="secondary" className="text-[10px] text-white/90">{hr.reviewed} заявок</Badge>
-                                <span className="text-green-500 text-xs font-bold">{hr.acceptance_rate}%</span>
+                            <div className="flex gap-4 items-center">
+                                <Badge variant="secondary" className="text-[10px] bg-white text-black font-black border-white px-2 py-0.5">{hr.reviewed} Review</Badge>
+                                <span className="text-green-400 text-sm font-black drop-shadow-sm">{hr.acceptance_rate}%</span>
                             </div>
                         </div>
                     ))}
@@ -400,9 +400,9 @@ const renderStaff = (
 
             {/* CURRENT STAFF SECTION - Grouped */}
             <section className="space-y-6">
-                <div className="flex items-center justify-between ml-1">
-                    <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white/90">👥 Команда ({staff.length})</h2>
-                    <Badge variant="secondary" className="text-[9px] opacity-60">Staff</Badge>
+                <div className="flex items-center justify-between ml-1 mb-2">
+                    <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">👥 Команда ({staff.length})</h2>
+                    <Badge variant="secondary" className="text-[10px] bg-white text-black font-black border-white px-3 py-0.5">Staff</Badge>
                 </div>
 
                 <div className="space-y-6">
@@ -413,30 +413,30 @@ const renderStaff = (
 
                         return (
                             <div key={roleKey} className="space-y-3">
-                                <div className="flex items-center gap-2 mb-2 px-1">
-                                    <span className="text-sm">{config.icon}</span>
-                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-white/50">{config.label}</h3>
-                                    <div className="h-[1px] flex-1 bg-white/5 ml-2"></div>
+                                <div className="flex items-center gap-2 mb-3 px-1 mt-2">
+                                    <span className="text-lg">{config.icon}</span>
+                                    <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-white underline decoration-primary/40 underline-offset-4">{config.label}</h3>
+                                    <div className="h-[1px] flex-1 bg-white/10 ml-3"></div>
                                 </div>
                                 <div className="grid gap-2">
                                     {members.map((member: any) => (
-                                        <Card key={member.id} className="p-4 flex justify-between items-center bg-secondary/15 border-white/5 hover:bg-secondary/25 transition-all group">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 rounded-full ${config.color}/10 flex items-center justify-center text-xs font-black ${config.color.replace('bg-', 'text-')}`}>
+                                        <Card key={member.id} className="p-5 flex justify-between items-center bg-secondary/40 border-white/20 hover:bg-white/[0.08] transition-all group shadow-xl backdrop-blur-sm">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-10 h-10 rounded-full ${config.color.replace('bg-', 'bg-')}/20 flex items-center justify-center text-sm font-black ${config.color.replace('bg-', 'text-')} border border-white/10`}>
                                                     {member.full_name?.charAt(0) || '?'}
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-sm text-white group-hover:text-primary transition-colors">{member.full_name}</span>
-                                                    <span className="text-[10px] text-white/40">@{member.username || member.telegram_id}</span>
+                                                    <span className="font-black text-sm text-white group-hover:text-primary transition-colors">{member.full_name}</span>
+                                                    <span className="text-[11px] font-bold text-white/60">@{member.username || member.telegram_id}</span>
                                                 </div>
                                             </div>
                                             {member.role.toLowerCase() !== 'director' && (
                                                 <button
                                                     onClick={() => onReset(member.id, member.full_name)}
-                                                    className="w-8 h-8 rounded-lg bg-red-500/5 text-red-500/40 flex items-center justify-center hover:bg-orange-500/20 hover:text-orange-500 transition-all duration-300"
+                                                    className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500/40 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all duration-300 shadow-sm border border-red-500/20"
                                                     title="Зняти роль"
                                                 >
-                                                    ↩️
+                                                    <span className="text-lg">↩️</span>
                                                 </button>
                                             )}
                                         </Card>
@@ -453,17 +453,17 @@ const renderStaff = (
                 <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white/90 ml-1">🔗 Активні лінки ({activeInvites.length})</h2>
                 <div className="grid gap-3">
                     {activeInvites.map(inv => (
-                        <Card key={inv.id} className="p-4 border border-white/5 bg-secondary/10 relative overflow-hidden group">
-                            <div className="flex justify-between items-center mb-4">
+                        <Card key={inv.id} className="p-5 border-white/20 bg-secondary/40 shadow-2xl backdrop-blur-md relative overflow-hidden group">
+                            <div className="flex justify-between items-center mb-5">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg">{roleConfigs[inv.role.toLowerCase()]?.icon || '🔗'}</span>
-                                    <Badge variant="info" className="uppercase font-black text-[9px] tracking-tighter px-2">
+                                    <span className="text-xl">{roleConfigs[inv.role.toLowerCase()]?.icon || '🔗'}</span>
+                                    <Badge variant="info" className="uppercase font-black text-[10px] tracking-widest px-3 py-1 bg-white text-black border-white">
                                         {inv.role}
                                     </Badge>
                                 </div>
                                 <button
                                     onClick={() => onDelete(inv.id)}
-                                    className="text-[10px] text-red-500/50 hover:text-red-500 font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
+                                    className="text-[11px] text-red-500 font-black uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-1.5 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20"
                                 >
                                     <span>видалити</span> 🗑️
                                 </button>
@@ -472,14 +472,14 @@ const renderStaff = (
                                 <Input
                                     value={inv.invite_url}
                                     readOnly
-                                    className="flex-1 bg-black/40 border-white/5 font-mono text-[10px] pr-12 h-9"
+                                    className="flex-1 bg-black/60 border-white/10 font-mono text-xs text-white pr-12 h-10"
                                     onClick={(e: any) => e.target.select()}
                                 />
                                 <div className="absolute right-0 top-0 bottom-0 pr-1 flex items-center">
                                     <Button
                                         variant="secondary"
                                         size="sm"
-                                        className="h-7 w-7 p-0 min-w-0 rounded-md hover:bg-primary transition-colors shadow-none"
+                                        className="h-8 w-8 p-0 min-w-0 rounded-lg bg-white text-black hover:bg-primary hover:text-white transition-all shadow-lg"
                                         onClick={() => onCopy(inv.invite_url)}
                                     >
                                         📋
@@ -530,20 +530,21 @@ const InviteButton = ({ icon, label, onClick }: any) => (
 );
 
 const MetricCard = ({ icon, value, label, trend, color = '', labelClassName = '' }: any) => (
-    <Card className="flex flex-col items-center justify-center p-5 hover:scale-[1.02] transition-transform relative overflow-hidden group text-center min-h-[150px] bg-secondary/10 border-white/5">
-        <div className="text-3xl mb-2 drop-shadow-md group-hover:scale-110 transition-transform duration-300">
+    <Card className="flex flex-col items-center justify-center p-6 hover:scale-[1.02] active:scale-[0.98] transition-all relative overflow-hidden group text-center min-h-[160px] bg-secondary/40 border-white/20 shadow-2xl backdrop-blur-md">
+        <div className="text-4xl mb-3 drop-shadow-lg group-hover:scale-110 transition-transform duration-300">
             {icon}
         </div>
         <div className="flex flex-col items-center z-10">
-            <div className={`text-3xl font-black font-mono tracking-tighter ${color || 'text-white'}`}>{value}</div>
-            <div className={`text-[10px] uppercase font-black tracking-widest leading-tight mt-1 ${labelClassName || 'text-white/70'}`}>
+            <div className={`text-4xl font-black font-mono tracking-tighter ${color || 'text-white'} drop-shadow-sm`}>{value}</div>
+            <div className={`text-[11px] uppercase font-black tracking-widest leading-tight mt-2 ${labelClassName || 'text-white/90'} drop-shadow-sm`}>
                 {label}
             </div>
             {trend && (
-                <div className="mt-2 text-[9px] font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
+                <div className="mt-3 text-[10px] font-bold text-green-400 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20 shadow-sm">
                     {trend}
                 </div>
             )}
         </div>
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent pointer-events-none" />
     </Card>
 );

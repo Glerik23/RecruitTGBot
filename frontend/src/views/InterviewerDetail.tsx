@@ -57,7 +57,7 @@ export const InterviewerDetail: React.FC = () => {
 
     // Scheduling state
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
+    const [selectedSlots, setSelectedSlots] = useState<{ start: string; end: string }[]>([]);
     const [locationType, setLocationType] = useState<'online' | 'office'>('online');
     const [details, setDetails] = useState({ meet_link: '', address: '' });
 
@@ -110,15 +110,15 @@ export const InterviewerDetail: React.FC = () => {
             const end = new Date(start);
             end.setHours(end.getHours() + 1);
 
-            return `${start.toISOString()}|${end.toISOString()}`;
+            return { start: start.toISOString(), end: end.toISOString() };
         });
 
         // Filter out old slots for this date and add new ones
-        const otherSlots = selectedSlots.filter(s => new Date(s.split('|')[0]).toDateString() !== date.toDateString());
+        const otherSlots = selectedSlots.filter((s: any) => new Date(s.start).toDateString() !== date.toDateString());
 
-        const updated = [...otherSlots, ...newSlots].sort((a, b) => {
-            const timeA = new Date(a.split('|')[0]).getTime();
-            const timeB = new Date(b.split('|')[0]).getTime();
+        const updated = [...otherSlots, ...newSlots].sort((a: any, b: any) => {
+            const timeA = new Date(a.start).getTime();
+            const timeB = new Date(b.start).getTime();
             return timeA - timeB;
         });
 
@@ -190,18 +190,14 @@ export const InterviewerDetail: React.FC = () => {
                 <div className="space-y-3">
                     <label className="text-[10px] text-hint uppercase font-bold tracking-wider">Навички</label>
                     <div className="flex flex-wrap gap-2">
-                        {app.skills_details?.length ? (
-                            app.skills_details.map(s => (
-                                <div key={s.name} className="flex items-center gap-2 bg-white/5 pl-3 pr-1.5 py-1 rounded-xl border border-white/5">
-                                    <span className="text-sm font-medium text-white/90">{s.name}</span>
-                                    <Badge variant="blue" className="text-[10px] scale-90">
-                                        {parseFloat(s.exp) > 0 ? `${s.exp} р.` : '< 1 р.'}
-                                    </Badge>
-                                </div>
-                            ))
-                        ) : (
-                            app.skills.map(s => <Badge key={s} variant="secondary" className="bg-white/5">{s}</Badge>)
-                        )}
+                        {app.skills?.map((s: any) => (
+                            <div key={s.name} className="flex items-center gap-2 bg-white/5 pl-3 pr-1.5 py-1 rounded-xl border border-white/5">
+                                <span className="text-sm font-medium text-white/90">{s.name}</span>
+                                <Badge variant="blue" className="text-[10px] scale-90">
+                                    {typeof s === 'object' ? (parseFloat(s.exp) > 0 ? `${s.exp} р.` : '< 1 р.') : (s)}
+                                </Badge>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
@@ -277,11 +273,10 @@ export const InterviewerDetail: React.FC = () => {
                     {selectedSlots.length > 0 && (
                         <div className="space-y-2">
                             <div className="flex flex-wrap gap-2">
-                                {selectedSlots.map((slot, idx) => {
-                                    const [start] = slot.split('|');
+                                {selectedSlots.map((slot: any, idx) => {
                                     return (
                                         <Badge key={idx} variant="blue" className="pr-1 py-1.5">
-                                            {new Date(start).toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(slot.start).toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                             <button onClick={() => setSelectedSlots(selectedSlots.filter((_, i) => i !== idx))} className="ml-2 hover:text-red-400">×</button>
                                         </Badge>
                                     );
@@ -355,13 +350,13 @@ export const InterviewerDetail: React.FC = () => {
             )}
 
             {showDatePicker && (() => {
-                const lastSlotStr = selectedSlots[selectedSlots.length - 1];
-                const initialDate = lastSlotStr ? new Date(lastSlotStr.split('|')[0]) : null;
+                const lastSlot = selectedSlots[selectedSlots.length - 1];
+                const initialDate = lastSlot ? new Date(lastSlot.start) : null;
                 const initialTimes = initialDate
                     ? selectedSlots
-                        .filter(s => new Date(s.split('|')[0]).toDateString() === initialDate.toDateString())
-                        .map(s => {
-                            const d = new Date(s.split('|')[0]);
+                        .filter((s: any) => new Date(s.start).toDateString() === initialDate.toDateString())
+                        .map((s: any) => {
+                            const d = new Date(s.start);
                             return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
                         })
                     : [];
@@ -373,9 +368,9 @@ export const InterviewerDetail: React.FC = () => {
                         initialTimes={initialTimes}
                         getExistingTimes={(date: Date) =>
                             selectedSlots
-                                .filter(s => new Date(s.split('|')[0]).toDateString() === date.toDateString())
-                                .map(s => {
-                                    const d = new Date(s.split('|')[0]);
+                                .filter((s: any) => new Date(s.start).toDateString() === date.toDateString())
+                                .map((s: any) => {
+                                    const d = new Date(s.start);
                                     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
                                 })
                         }

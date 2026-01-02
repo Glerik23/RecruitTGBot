@@ -246,8 +246,7 @@ export const CandidateForm: React.FC = () => {
 
         // Send structured data
         data.english_level = data.english_level || null;
-        data.skills = skills.map(s => s.name);
-        data.skills_details = skills.map(s => ({
+        data.skills = skills.map(s => ({
             name: s.name,
             exp: s.exp
         }));

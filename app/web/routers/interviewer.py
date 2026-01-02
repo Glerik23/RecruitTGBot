@@ -30,7 +30,7 @@ async def get_dashboard_data(
     archive = ApplicationService.get_all_applications(db, status="archive", interviewer_id=user.id)
     
     # Pool: tech_pending AND tech_interviewer_id is None
-    pool = ApplicationService.get_all_applications(db, status="pool", interviewer_id=None)
+    pool = ApplicationService.get_all_applications(db, status="pool", interviewer_id=user.id)
     
     def serialize(app):
         return {
@@ -40,7 +40,6 @@ async def get_dashboard_data(
             "status": app.status,
             "experience_years": app.experience_years,
             "skills": app.skills,
-            "skills_details": app.skills_details,
             "english_level": app.english_level,
             "created_at": app.created_at.isoformat(),
             "tech_interviewer_id": app.tech_interviewer_id
@@ -66,7 +65,7 @@ async def get_application_detail(
     # Check if this interviewer is assigned
     if app.tech_interviewer_id != user.id:
         # Allow viewing if it's in the technical pool (unassigned)
-        is_in_pool = (app.status == ApplicationStatus.TECH_PENDING.value and app.tech_interviewer_id is None)
+        is_in_pool = (app.status == ApplicationStatus.TECH_PENDING and app.tech_interviewer_id is None)
         if not is_in_pool:
             raise HTTPException(status_code=403, detail="Доступ заборонено (ви не є власником цієї заявки)")
 
@@ -96,7 +95,6 @@ async def get_application_detail(
         "position": app.position,
         "experience_years": app.experience_years,
         "skills": app.skills,
-        "skills_details": app.skills_details,
         "english_level": app.english_level,
         "education": app.education,
         "previous_work": app.previous_work,
@@ -204,7 +202,7 @@ async def get_pool_applications(
 ):
     """Get unassigned applications in the tech pool"""
     apps = db.query(Application).filter(
-        Application.status == ApplicationStatus.TECH_PENDING.value,
+        Application.status == ApplicationStatus.TECH_PENDING,
         Application.tech_interviewer_id == None
     ).order_by(Application.created_at.asc()).all()
     
@@ -234,7 +232,7 @@ async def claim_application(
         if not app:
             raise HTTPException(status_code=404, detail="Application not found")
             
-        if app.status != ApplicationStatus.TECH_PENDING.value or app.tech_interviewer_id is not None:
+        if app.status != ApplicationStatus.TECH_PENDING or app.tech_interviewer_id is not None:
              raise HTTPException(status_code=400, detail=f"Application not available for claim (Status: {app.status}, Assigned: {app.tech_interviewer_id})")
              
         ApplicationService.assign_tech_interviewer(db, application_id, user.id)

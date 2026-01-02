@@ -11,26 +11,28 @@ class ApplicationService(BaseService[Application]):
     """Сервіс для управління заявками"""
     
     STATUS_GROUPS = {
-        "pending": [ApplicationStatus.PENDING.value], 
-        "processing": [ApplicationStatus.ACCEPTED.value],
+        "pending": [ApplicationStatus.SCREENING_PENDING], 
+        "processing": [ApplicationStatus.ACCEPTED],
         "interviews": [
-            ApplicationStatus.SCREENING_PENDING.value
+            ApplicationStatus.SCREENING_PENDING,
+            ApplicationStatus.TECH_PENDING
         ],
         "tech": [
-            ApplicationStatus.TECH_PENDING.value,
-            ApplicationStatus.TECH_SCHEDULED.value,
-            ApplicationStatus.TECH_COMPLETED.value
+            ApplicationStatus.TECH_PENDING,
+            ApplicationStatus.TECH_SCHEDULED,
+            ApplicationStatus.TECH_COMPLETED
         ],
         "planned": [
-            ApplicationStatus.SCREENING_SCHEDULED.value
+            ApplicationStatus.SCREENING_SCHEDULED,
+            ApplicationStatus.TECH_SCHEDULED
         ],
-        "approved": [ApplicationStatus.HIRED.value],
-        "rejected": [ApplicationStatus.REJECTED.value, ApplicationStatus.DECLINED.value, ApplicationStatus.CANCELLED.value],
+        "approved": [ApplicationStatus.HIRED],
+        "rejected": [ApplicationStatus.REJECTED, ApplicationStatus.DECLINED, ApplicationStatus.CANCELLED],
         "archive": [
-            ApplicationStatus.HIRED.value,
-            ApplicationStatus.REJECTED.value, 
-            ApplicationStatus.DECLINED.value, 
-            ApplicationStatus.CANCELLED.value
+            ApplicationStatus.HIRED,
+            ApplicationStatus.REJECTED, 
+            ApplicationStatus.DECLINED, 
+            ApplicationStatus.CANCELLED
         ]
     }
 
@@ -49,13 +51,12 @@ class ApplicationService(BaseService[Application]):
             position=data.get("position"),
             experience_years=data.get("experience_years"),
             skills=data.get("skills", []),
-            skills_details=data.get("skills_details", []),
             english_level=data.get("english_level"),
             education=data.get("education"),
             previous_work=data.get("previous_work"),
             portfolio_url=data.get("portfolio_url"),
             additional_info=data.get("additional_info"),
-            status=ApplicationStatus.PENDING.value
+            status=ApplicationStatus.SCREENING_PENDING
         )
         db.add(application)
         db.commit()
@@ -78,7 +79,7 @@ class ApplicationService(BaseService[Application]):
     def get_pending_applications(db: Session) -> List[Application]:
         """Отримати заявки, що очікують розгляду"""
         return db.query(Application).filter(
-            Application.status == ApplicationStatus.PENDING.value
+            Application.status == ApplicationStatus.SCREENING_PENDING
         ).order_by(Application.created_at.asc()).all()
 
 
@@ -100,7 +101,15 @@ class ApplicationService(BaseService[Application]):
             # - Inbox (pending): visible to all HRs
             # - Processing/Interviews: visible only to owner
             if status == "pending":
-                query = query.filter(Application.status == ApplicationStatus.PENDING.value)
+                query = query.filter(
+                    Application.status == ApplicationStatus.SCREENING_PENDING,
+                    Application.hr_id == None
+                )
+            elif status == "interviews":
+                query = query.filter(
+                    Application.status.in_([ApplicationStatus.SCREENING_PENDING, ApplicationStatus.TECH_PENDING]),
+                    Application.hr_id == hr_id
+                )
             else:
                 query = query.filter(Application.hr_id == hr_id)
         elif interviewer_id:
@@ -108,7 +117,7 @@ class ApplicationService(BaseService[Application]):
             # OR "Pool" (tech_pending AND ID is None)
             if status == "pool":
                 query = query.filter(
-                    Application.status == ApplicationStatus.TECH_PENDING.value,
+                    Application.status == ApplicationStatus.TECH_PENDING,
                     Application.tech_interviewer_id == None
                 )
             else:
@@ -121,7 +130,7 @@ class ApplicationService(BaseService[Application]):
             else:
                 try:
                     status_enum = ApplicationStatus(status)
-                    query = query.filter(Application.status == status_enum.value)
+                    query = query.filter(Application.status == status_enum)
                 except ValueError:
                     pass
                 
@@ -152,12 +161,25 @@ class ApplicationService(BaseService[Application]):
         # More precise counts if filtered
         counts = {}
         for group_name, statuses in ApplicationService.STATUS_GROUPS.items():
-            if hr_id and group_name != "pending":
-                # Regular tabs (processing, interviews, etc) show only OWNED
-                count = db.query(func.count(Application.id)).filter(
-                    Application.status.in_(statuses),
-                    Application.hr_id == hr_id
-                ).scalar()
+            if hr_id:
+                if group_name == "pending":
+                    # Inbox: NOT owned, SCREENING_PENDING
+                    count = db.query(func.count(Application.id)).filter(
+                        Application.status == ApplicationStatus.SCREENING_PENDING,
+                        Application.hr_id == None
+                    ).scalar()
+                elif group_name == "interviews":
+                    # My invitations: Owned, SCREENING_PENDING or TECH_PENDING
+                    count = db.query(func.count(Application.id)).filter(
+                        Application.status.in_([ApplicationStatus.SCREENING_PENDING, ApplicationStatus.TECH_PENDING]),
+                        Application.hr_id == hr_id
+                    ).scalar()
+                else:
+                    # Regular tabs (processing, planned, archive) show only OWNED
+                    count = db.query(func.count(Application.id)).filter(
+                        Application.status.in_(statuses),
+                        Application.hr_id == hr_id
+                    ).scalar()
             elif interviewer_id and group_name == "tech":
                  # Interviewer counts their OWN tech apps
                  count = db.query(func.count(Application.id)).filter(
@@ -189,7 +211,7 @@ class ApplicationService(BaseService[Application]):
         if not application:
             return None
         
-        application.status = ApplicationStatus.REJECTED.value
+        application.status = ApplicationStatus.REJECTED
         application.hr_id = hr_id
         application.rejection_reason = reason
         application.reviewed_at = datetime.now(timezone.utc)
@@ -207,7 +229,7 @@ class ApplicationService(BaseService[Application]):
         if not application:
             return None
         
-        application.status = ApplicationStatus.ACCEPTED.value
+        application.status = ApplicationStatus.ACCEPTED
         application.hr_id = hr_id
         application.reviewed_at = datetime.now(timezone.utc)
         
@@ -237,20 +259,18 @@ class ApplicationService(BaseService[Application]):
             
         # Allow cancellation for any active process status
         allowed_statuses = {
-            ApplicationStatus.PENDING.value,
-            ApplicationStatus.ACCEPTED.value,
-            ApplicationStatus.SCREENING_PENDING.value,
-            ApplicationStatus.SCREENING_SCHEDULED.value,
-            ApplicationStatus.SCREENING_COMPLETED.value,
-            ApplicationStatus.TECH_PENDING.value,
-            ApplicationStatus.TECH_SCHEDULED.value,
-            ApplicationStatus.TECH_COMPLETED.value
+            ApplicationStatus.SCREENING_PENDING,
+            ApplicationStatus.SCREENING_SCHEDULED,
+            ApplicationStatus.SCREENING_COMPLETED,
+            ApplicationStatus.TECH_PENDING,
+            ApplicationStatus.TECH_SCHEDULED,
+            ApplicationStatus.TECH_COMPLETED
         }
         
         if application.status not in allowed_statuses:
             return None
         
-        application.status = ApplicationStatus.CANCELLED.value
+        application.status = ApplicationStatus.CANCELLED
         
         return BaseService.commit_and_refresh(db, application)
 
@@ -264,7 +284,7 @@ class ApplicationService(BaseService[Application]):
         if not application:
             return None
         
-        application.status = ApplicationStatus.SCREENING_PENDING.value
+        application.status = ApplicationStatus.SCREENING_PENDING
         return BaseService.commit_and_refresh(db, application)
 
     @staticmethod
@@ -277,7 +297,7 @@ class ApplicationService(BaseService[Application]):
         if not application:
             return None
         
-        application.status = ApplicationStatus.TECH_PENDING.value
+        application.status = ApplicationStatus.TECH_PENDING
         # Clear specific assignment if any, to allow pooling
         application.tech_interviewer_id = None
         
@@ -314,7 +334,7 @@ class ApplicationService(BaseService[Application]):
         if not application:
             return None
         
-        application.status = ApplicationStatus.HIRED.value
+        application.status = ApplicationStatus.HIRED
         application.hr_id = hr_id
         application.reviewed_at = datetime.now(timezone.utc)
         

@@ -40,7 +40,6 @@ async def get_hr_applications(
                 "position": app.position,
                 "experience_years": app.experience_years,
                 "skills": app.skills,
-                "skills_details": app.skills_details,
                 "english_level": app.english_level,
                 "education": app.education,
                 "previous_work": app.previous_work,
@@ -81,7 +80,6 @@ async def get_application_detail(
         "position": application.position,
         "experience_years": application.experience_years,
         "skills": application.skills,
-        "skills_details": application.skills_details,
         "english_level": application.english_level,
         "education": application.education,
         "previous_work": application.previous_work,
@@ -107,7 +105,15 @@ async def get_application_detail(
                 "id": i.id,
                 "type": i.interview_type.value,
                 "location": i.location_type.value if i.location_type else None,
-                "slots": i.available_slots,
+                "slots": [
+                    {
+                        "id": s.id,
+                        "start_time": s.start_time.isoformat(),
+                        "end_time": s.end_time.isoformat(),
+                        "is_booked": s.is_booked
+                    }
+                    for s in i.slots
+                ],
                 "selected_time": i.selected_time.isoformat() if i.selected_time else None,
                 "confirmed": i.is_confirmed,
                 "link": i.meet_link,

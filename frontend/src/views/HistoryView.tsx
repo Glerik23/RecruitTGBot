@@ -36,6 +36,12 @@ export const HistoryView: React.FC = () => {
 
     const statusMap: Record<string, { text: string; variant: BadgeVariant; icon: string }> = {
         'pending': { text: 'Очікування', variant: 'yellow', icon: '⏳' },
+        'screening_pending': { text: 'Очікує скрінінг', variant: 'info', icon: '📅' },
+        'screening_scheduled': { text: 'Скрінінг заплановано', variant: 'info', icon: '⏰' },
+        'screening_completed': { text: 'Скрінінг завершено', variant: 'success', icon: '✅' },
+        'tech_pending': { text: 'Очікує тех. інтерв\'ю', variant: 'info', icon: '💻' },
+        'tech_scheduled': { text: 'Тех. інтерв\'ю заплановано', variant: 'info', icon: '⏰' },
+        'tech_completed': { text: 'Тех. інтерв\'ю завершено', variant: 'success', icon: '✅' },
         'reviewed': { text: 'Переглянуто', variant: 'info', icon: '👀' },
         'interview_scheduled': { text: 'Інтерв\'ю', variant: 'info', icon: '📅' },
         'accepted': { text: 'Прийнято', variant: 'success', icon: '✅' },
@@ -55,7 +61,7 @@ export const HistoryView: React.FC = () => {
 
     const filteredApps = applications.filter(app => {
         if (filter === 'all') return true;
-        return app.status === filter;
+        return app.status.toLowerCase() === filter;
     });
 
     if (loading) return <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
@@ -89,7 +95,7 @@ export const HistoryView: React.FC = () => {
 
             <div className="space-y-4">
                 {filteredApps.length > 0 ? filteredApps.map(app => {
-                    const status = statusMap[app.status] || { text: app.status, variant: 'secondary', icon: '❓' };
+                    const status = statusMap[app.status.toLowerCase()] || { text: app.status, variant: 'secondary', icon: '❓' };
                     return (
                         <Card key={app.id} className="space-y-3">
                             <div className="flex justify-between items-start">

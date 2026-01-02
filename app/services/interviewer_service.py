@@ -53,7 +53,7 @@ class InterviewerService(BaseService[Feedback]):
         # Update status to TECH_COMPLETED
         application = db.query(Application).get(application_id)
         if application:
-            application.status = ApplicationStatus.TECH_COMPLETED.value
+            application.status = ApplicationStatus.TECH_COMPLETED
             db.add(application)
         
         db.commit()

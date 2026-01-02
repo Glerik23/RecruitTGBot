@@ -89,7 +89,15 @@ async def get_my_interviews(
                 "location_type": interview.location_type.value if interview.location_type else None,
                 "meet_link": interview.meet_link,
                 "address": interview.address,
-                "available_slots": interview.available_slots,
+                "slots": [
+                    {
+                        "id": slot.id,
+                        "start_time": slot.start_time.isoformat(),
+                        "end_time": slot.end_time.isoformat(),
+                        "is_booked": slot.is_booked
+                    }
+                    for slot in interview.slots
+                ],
                 "selected_time": interview.selected_time.isoformat() if interview.selected_time else None,
                 "is_confirmed": interview.is_confirmed,
                 "notes": interview.notes
@@ -108,20 +116,19 @@ async def select_slot(
 ):
     """Select interview slot"""
     
-    selected_date = datetime.fromisoformat(data.selected_date)
     # Using new service method
     try:
         interview = InterviewService.select_slot(
             db,
             data.interview_id,
             user.id,
-            selected_date
+            data.slot_id
         )
         
         # Notify HR or Interviewer that candidate picked a slot
         if interview.interviewer and interview.interviewer.telegram_id:
             from app.services.notification_service import NotificationService
-            datetime_str = selected_date.strftime("%d.%m.%Y о %H:%M")
+            datetime_str = interview.selected_time.strftime("%d.%m.%Y о %H:%M")
             await NotificationService.notify_staff_slot_selected(
                 request,
                 interview.interviewer.telegram_id,

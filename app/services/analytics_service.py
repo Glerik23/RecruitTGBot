@@ -19,22 +19,36 @@ class AnalyticsService:
         """Загальна статистика"""
         total_applications = db.query(func.count(Application.id)).scalar()
         pending = db.query(func.count(Application.id)).filter(
-            Application.status == ApplicationStatus.PENDING.value
+            Application.status == ApplicationStatus.SCREENING_PENDING
         ).scalar()
+        # "Processing" applications = all that are not in terminal status and not brand new (pending in inbox)
+        # But for overview, 'accepted' usually means 'under consideration'
+        processing_statuses = [
+            ApplicationStatus.ACCEPTED,
+            ApplicationStatus.SCREENING_PENDING,
+            ApplicationStatus.SCREENING_SCHEDULED,
+            ApplicationStatus.SCREENING_COMPLETED,
+            ApplicationStatus.TECH_PENDING,
+            ApplicationStatus.TECH_SCHEDULED,
+            ApplicationStatus.TECH_COMPLETED
+        ]
+        
         accepted = db.query(func.count(Application.id)).filter(
-            Application.status == ApplicationStatus.ACCEPTED.value
+            Application.status.in_(processing_statuses)
         ).scalar()
+        
         rejected = db.query(func.count(Application.id)).filter(
-            Application.status == ApplicationStatus.REJECTED.value
+            Application.status.in_([ApplicationStatus.REJECTED, ApplicationStatus.DECLINED])
         ).scalar()
+        
         interviews_scheduled = db.query(func.count(Interview.id)).filter(
             Interview.is_confirmed == True
         ).scalar()
         hired = db.query(func.count(Application.id)).filter(
-            Application.status == ApplicationStatus.HIRED.value
+            Application.status == ApplicationStatus.HIRED
         ).scalar()
         cancelled = db.query(func.count(Application.id)).filter(
-            Application.status == ApplicationStatus.CANCELLED.value
+            Application.status == ApplicationStatus.CANCELLED
         ).scalar()
         
         return {
@@ -130,33 +144,9 @@ class AnalyticsService:
     
     @staticmethod
     def get_hr_performance(db: Session) -> List[Dict[str, Any]]:
-        """Продуктивність HR менеджерів"""
-        hr_users = db.query(User).filter(User.role == UserRole.HR).all()
-        
-        performance = []
-        for hr in hr_users:
-            reviewed = db.query(func.count(Application.id)).filter(
-                Application.hr_id == hr.id
-            ).scalar()
-            accepted = db.query(func.count(Application.id)).filter(
-                Application.hr_id == hr.id,
-                Application.status == ApplicationStatus.ACCEPTED.value
-            ).scalar()
-            rejected = db.query(func.count(Application.id)).filter(
-                Application.hr_id == hr.id,
-                Application.status == ApplicationStatus.REJECTED.value
-            ).scalar()
-            
-            performance.append({
-                "hr_id": hr.id,
-                "hr_name": f"{hr.first_name} {hr.last_name}" if hr.first_name else hr.username or "Невідомо",
-                "reviewed": reviewed or 0,
-                "accepted": accepted or 0,
-                "rejected": rejected or 0,
-                "acceptance_rate": round((accepted / reviewed * 100) if reviewed > 0 else 0, 2)
-            })
-        
-        return performance
+        """Продуктивність HR менеджерів (Дані з hr_activity_metrics для консистентності)"""
+        metrics = AnalyticsService.get_hr_activity_metrics(db)
+        return metrics["hr_details"]
     
     @staticmethod
     def get_time_to_review(db: Session) -> Dict[str, Any]:
@@ -193,17 +183,12 @@ class AnalyticsService:
         
         all_skills = []
         for app in applications:
-            if app.skills:
-                if isinstance(app.skills, list):
-                    all_skills.extend([skill.lower().strip() for skill in app.skills])
-                elif isinstance(app.skills, str):
-                    # Якщо skills збережено як рядок
-                    try:
-                        skills_list = json.loads(app.skills)
-                        if isinstance(skills_list, list):
-                            all_skills.extend([skill.lower().strip() for skill in skills_list])
-                    except:
-                        pass
+            if app.skills and isinstance(app.skills, list):
+                for skill_obj in app.skills:
+                    if isinstance(skill_obj, dict) and "name" in skill_obj:
+                        all_skills.append(skill_obj["name"].lower().strip())
+                    elif isinstance(skill_obj, str):
+                        all_skills.append(skill_obj.lower().strip())
         
         # Підрахунок популярних технологій
         skill_counter = Counter(all_skills)
@@ -246,47 +231,46 @@ class AnalyticsService:
     
     @staticmethod
     def get_conversion_metrics(db: Session) -> Dict[str, Any]:
-        """Метрики конверсії"""
+        """Метрики конверсії (Воронка найму)"""
         total_applications = db.query(func.count(Application.id)).scalar() or 0
-        accepted_applications = db.query(func.count(Application.id)).filter(
-            Application.status == ApplicationStatus.ACCEPTED.value
+        
+        # 1. Прийняті до розгляду (будь-який етап після Pending)
+        started_processing = db.query(func.count(Application.id)).filter(
+            Application.hr_id.isnot(None)
         ).scalar() or 0
         
+        # 2. Допущені до технічного етапу
+        reached_tech = db.query(func.count(Application.id)).filter(
+            Application.status.in_([
+                ApplicationStatus.TECH_PENDING, 
+                ApplicationStatus.TECH_SCHEDULED, 
+                ApplicationStatus.TECH_COMPLETED,
+                ApplicationStatus.HIRED
+            ])
+        ).scalar() or 0
+        
+        # 3. Найняті
+        hired = db.query(func.count(Application.id)).filter(
+            Application.status == ApplicationStatus.HIRED
+        ).scalar() or 0
+        
+        # Розрахунок інтерв'ю
         total_interviews = db.query(func.count(Interview.id)).scalar() or 0
         confirmed_interviews = db.query(func.count(Interview.id)).filter(
             Interview.is_confirmed == True
         ).scalar() or 0
         
-        hired = db.query(func.count(Application.id)).filter(
-            Application.status == ApplicationStatus.HIRED.value
-        ).scalar() or 0
-        
-        # Конверсія заявка -> прийнята
-        application_to_accepted = (accepted_applications / total_applications * 100) if total_applications > 0 else 0
-        
-        # Конверсія заявка -> собесідування
-        application_to_interview = (total_interviews / total_applications * 100) if total_applications > 0 else 0
-        
-        # Конверсія заявка -> підтверджене собесідування
-        application_to_confirmed = (confirmed_interviews / total_applications * 100) if total_applications > 0 else 0
-        
-        # Конверсія заявка -> найм
-        application_to_hired = (hired / total_applications * 100) if total_applications > 0 else 0
-        
-        # Конверсія собесідування -> найм
-        interview_to_hired = (hired / confirmed_interviews * 100) if confirmed_interviews > 0 else 0
-        
         return {
-            "application_to_accepted": round(application_to_accepted, 2),
-            "application_to_interview": round(application_to_interview, 2),
-            "application_to_confirmed_interview": round(application_to_confirmed, 2),
-            "application_to_hired": round(application_to_hired, 2),
-            "interview_to_hired": round(interview_to_hired, 2),
+            "application_to_processing": round((started_processing / total_applications * 100) if total_applications > 0 else 0, 2),
+            "processing_to_tech": round((reached_tech / started_processing * 100) if started_processing > 0 else 0, 2),
+            "tech_to_hired": round((hired / reached_tech * 100) if reached_tech > 0 else 0, 2),
+            "overall_conversion": round((hired / total_applications * 100) if total_applications > 0 else 0, 2),
             "total_applications": total_applications,
-            "accepted": accepted_applications,
-            "interviews": total_interviews,
-            "confirmed_interviews": confirmed_interviews,
-            "hired": hired
+            "started_processing": started_processing,
+            "reached_tech": reached_tech,
+            "hired": hired,
+            "interviews_total": total_interviews,
+            "interviews_confirmed": confirmed_interviews
         }
     
     @staticmethod
@@ -330,7 +314,7 @@ class AnalyticsService:
     def get_rejection_reasons(db: Session) -> Dict[str, int]:
         """Статистика причин відхилення"""
         reasons = db.query(Application.rejection_reason).filter(
-            Application.status == ApplicationStatus.REJECTED.value,
+            Application.status == ApplicationStatus.REJECTED,
             Application.rejection_reason.isnot(None)
         ).all()
         
@@ -405,70 +389,75 @@ class AnalyticsService:
     @staticmethod
     def get_hr_activity_metrics(db: Session) -> Dict[str, Any]:
         """Детальні метрики активності HR"""
-        hr_users = db.query(User).filter(User.role == UserRole.HR).all()
+        # Отримуємо всіх користувачів, які колись обробляли заявки або мають роль HR/Director
+        staff_ids_subquery = db.query(Application.hr_id).filter(Application.hr_id.isnot(None)).distinct()
+        staff_users = db.query(User).filter(
+            (User.role.in_([UserRole.HR, UserRole.DIRECTOR])) | (User.id.in_(staff_ids_subquery))
+        ).all()
         
         total_reviewed = 0
         total_accepted = 0
         total_rejected = 0
         hr_details = []
         
-        for hr in hr_users:
+        # Визначаємо статуси, які вважаються успішним проходженням першого етапу
+        positive_statuses = [
+            ApplicationStatus.ACCEPTED,
+            ApplicationStatus.SCREENING_SCHEDULED,
+            ApplicationStatus.SCREENING_COMPLETED,
+            ApplicationStatus.TECH_PENDING,
+            ApplicationStatus.TECH_SCHEDULED,
+            ApplicationStatus.TECH_COMPLETED,
+            ApplicationStatus.HIRED
+        ]
+        
+        # Статуси відмови/скасування
+        negative_statuses = [
+            ApplicationStatus.REJECTED,
+            ApplicationStatus.CANCELLED,
+            ApplicationStatus.DECLINED
+        ]
+
+        for staff in staff_users:
+            # Скільки всього заявок переглянув (всі, крім SCREENING_PENDING без власника)
             reviewed = db.query(func.count(Application.id)).filter(
-                Application.hr_id == hr.id
+                Application.hr_id == staff.id
             ).scalar() or 0
             
-            # Позитивні статуси (що пройшли первинний фільтр)
-            positive_statuses = [
-                ApplicationStatus.ACCEPTED.value, "accepted",
-                ApplicationStatus.SCREENING_PENDING.value,
-                ApplicationStatus.SCREENING_SCHEDULED.value,
-                ApplicationStatus.SCREENING_COMPLETED.value,
-                ApplicationStatus.TECH_PENDING.value,
-                ApplicationStatus.TECH_SCHEDULED.value,
-                ApplicationStatus.TECH_COMPLETED.value,
-                "processing",
-                ApplicationStatus.HIRED.value, "hired"
-            ]
-            
-            # Негативні статуси
-            negative_statuses = [
-                ApplicationStatus.REJECTED.value, "rejected",
-                ApplicationStatus.CANCELLED.value, "cancelled",
-                ApplicationStatus.DECLINED.value, "declined"
-            ]
+            if reviewed == 0 and staff.role != UserRole.HR:
+                continue # Пропускаємо директорів, які не активні в рекрутингу
 
             accepted = db.query(func.count(Application.id)).filter(
-                Application.hr_id == hr.id,
+                Application.hr_id == staff.id,
                 Application.status.in_(positive_statuses)
             ).scalar() or 0
             
             rejected = db.query(func.count(Application.id)).filter(
-                Application.hr_id == hr.id,
+                Application.hr_id == staff.id,
                 Application.status.in_(negative_statuses)
             ).scalar() or 0
             
-            # Середній час розгляду для цього HR
+            # Середній час розгляду для цього користувача
             hr_apps = db.query(Application).filter(
-                Application.hr_id == hr.id,
+                Application.hr_id == staff.id,
                 Application.reviewed_at.isnot(None)
             ).all()
             
             avg_review_time = 0
             if hr_apps:
-                total_seconds = sum([
-                    (app.reviewed_at - app.created_at).total_seconds()
-                    for app in hr_apps
-                    if app.reviewed_at and app.created_at
-                ])
-                avg_review_time = total_seconds / len(hr_apps) / 3600  # в годинах
+                valid_apps = [app for app in hr_apps if app.reviewed_at and app.created_at]
+                if valid_apps:
+                    total_seconds = sum([(app.reviewed_at - app.created_at).total_seconds() for app in valid_apps])
+                    avg_review_time = total_seconds / len(valid_apps) / 3600  # в годинах
             
             total_reviewed += reviewed
             total_accepted += accepted
             total_rejected += rejected
             
             hr_details.append({
-                "hr_id": hr.id,
-                "hr_name": f"{hr.first_name} {hr.last_name}".strip() or hr.username or "Невідомо",
+                "hr_id": staff.id,
+                "hr_name": staff.full_name,
+                "role": staff.role.value,
                 "reviewed": reviewed,
                 "accepted": accepted,
                 "rejected": rejected,
@@ -477,7 +466,7 @@ class AnalyticsService:
             })
         
         return {
-            "total_hr_count": len(hr_users),
+            "total_hr_count": len([h for h in hr_details if h["reviewed"] > 0 or h["role"] == "hr"]),
             "total_reviewed": total_reviewed,
             "total_accepted": total_accepted,
             "total_rejected": total_rejected,

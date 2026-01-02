@@ -206,6 +206,7 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
         try {
             await api.post(`/hr/applications/${id}/tech/move`, data);
             showToast('Заявку переведено на технічний етап', 'success');
+            setShowTechMove(false);
             onUpdate();
             fetchDetail();
         } catch (e) {
@@ -217,7 +218,7 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
         try {
             await api.post(`/interviewer/applications/${id}/claim`);
             showToast('Кандидата успішно закріплено за вами', 'success');
-            onUpdate();
+            onUpdate('my');
             onClose();
         } catch (e) {
             showToast('Помилка при взятті в роботу', 'error');
@@ -347,22 +348,15 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                         <div className="space-y-3">
                             <span className="text-hint text-sm block">Технічні навички (деталі)</span>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {application.skills_details?.map((skill: any) => (
+                                {application.skills?.map((skill: any) => (
                                     <div key={skill.name} className="flex justify-between items-center bg-white/5 p-2 px-3 rounded-xl border border-white/5">
                                         <span className="text-sm font-medium text-white/90">{skill.name}</span>
                                         <Badge variant="blue" className="text-[10px]">
-                                            {skill.exp > 0 ? `${skill.exp} р.` : '< 1 р.'}
+                                            {typeof skill === 'object' ? (skill.exp > 0 ? `${skill.exp} р.` : '< 1 р.') : (skill)}
                                         </Badge>
                                     </div>
                                 ))}
                             </div>
-                            {!application.skills_details?.length && (
-                                <div className="flex flex-wrap gap-2">
-                                    {application.skills?.map((skill: string) => (
-                                        <Badge key={skill} variant="blue">{skill}</Badge>
-                                    ))}
-                                </div>
-                            )}
                         </div>
 
                         {['education', 'previous_work', 'additional_info'].map((key) => {
@@ -949,6 +943,14 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                                         </Button>
                                     );
                                 }
+                                if (application.active_interview) {
+                                    return renderActionButtons(
+                                        <div className="glass p-4 rounded-2xl text-center space-y-1">
+                                            <p className="text-sm font-bold text-hint">⏳ Очікуємо вибору часу</p>
+                                            <p className="text-[10px] opacity-60">Кандидат отримав посилання на вибір слотів</p>
+                                        </div>
+                                    );
+                                }
 
                                 return renderActionButtons(
                                     <Button
@@ -962,7 +964,8 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                         }
 
                         // HR Workflow
-                        if (s === 'pending' && role === 'hr') {
+                        // 1. Initial Review (No interview sent yet)
+                        if (s === 'screening_pending' && role === 'hr' && !application.interviews?.some((i: any) => i.type === 'hr_screening')) {
                             return renderActionButtons(
                                 <Button className="w-full py-4 text-sm font-bold shadow-lg shadow-primary/20" onClick={() => handleAction('accept')}>
                                     ✅ Прийняти
@@ -983,8 +986,9 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                         }
 
                         if (['screening_pending', 'screening_scheduled'].includes(s) && role === 'hr') {
-                            const hasSelectedTime = application.interviews?.some((i: any) => i.type === 'hr_screening' && i.selected_time);
-                            const isConfirmed = application.interviews?.some((i: any) => i.type === 'hr_screening' && i.confirmed);
+                            const hrInterview = application.interviews?.find((i: any) => i.type === 'hr_screening');
+                            const hasSelectedTime = hrInterview?.selected_time;
+                            const isConfirmed = hrInterview?.confirmed;
 
                             if (isConfirmed) {
                                 return renderActionButtons(
@@ -1007,7 +1011,6 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                                             variant="secondary"
                                             className="w-full py-2 text-xs font-bold opacity-80"
                                             onClick={() => {
-                                                const hrInterview = application.interviews?.find((i: any) => i.type === 'hr_screening');
                                                 if (hrInterview) {
                                                     setLocationType(hrInterview.location || 'online');
                                                     setDetails({
@@ -1029,7 +1032,6 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                                     <Button
                                         className="w-full py-4 text-sm font-bold shadow-lg shadow-primary/20"
                                         onClick={() => {
-                                            const hrInterview = application.interviews?.find((i: any) => i.type === 'hr_screening');
                                             if (hrInterview) {
                                                 setLocationType(hrInterview.location || 'online');
                                                 setDetails({
@@ -1048,25 +1050,6 @@ export const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ id, onClos
                                         <p className="text-[10px] opacity-60">Кандидат отримав посилання на вибір слотів</p>
                                     </div>
                                 )
-                            );
-                        }
-
-                        if (['processing'].includes(s) && role === 'hr') {
-                            return renderActionButtons(
-                                <Button
-                                    className="w-full py-4 text-sm font-bold flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 border-none shadow-lg shadow-blue-500/20"
-                                    onClick={async () => {
-                                        try {
-                                            const { interviewers } = await api.get('/hr/interviewers');
-                                            setInterviewers(interviewers);
-                                            setShowTechMove(true);
-                                        } catch (e) {
-                                            tg.showAlert('Помилка завантаження списку експертів');
-                                        }
-                                    }}
-                                >
-                                    👨‍💻 Перейти на технічний етап
-                                </Button>
                             );
                         }
 

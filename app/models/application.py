@@ -9,14 +9,14 @@ from app.database import Base
 class ApplicationStatus(enum.Enum):
     """Статуси заявки (Mixed Case to match DB history)"""
     # Legacy (Uppercase in DB)
-    PENDING = "PENDING" 
-    ACCEPTED = "ACCEPTED" 
-    REJECTED = "REJECTED" 
-    HIRED = "HIRED" 
-    DECLINED = "DECLINED" 
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    HIRED = "HIRED"
+    DECLINED = "DECLINED"
     CANCELLED = "CANCELLED"
 
-    # New Workflow (Lowercase in DB)
+    # New Workflow (Lowercase)
     SCREENING_PENDING = "screening_pending"
     SCREENING_SCHEDULED = "screening_scheduled"
     SCREENING_COMPLETED = "screening_completed"
@@ -48,17 +48,14 @@ class Application(Base):
     position = Column(String(255), nullable=False)  # Позиція, на яку подається
     experience_years = Column(Integer, nullable=True)
     english_level = Column(String(50), nullable=True)  # Рівень англійської (A1, B2, etc.)
-    skills = Column(JSON, nullable=True)  # Основний список навичок (для пошуку)
-    skills_details = Column(JSON, nullable=True)  # Детальний список {name: "Python", exp: 3}
+    skills = Column(JSON, nullable=True)  # List of skills with details [{"name": "Python", "exp": 3}]
     education = Column(Text, nullable=True)
     previous_work = Column(Text, nullable=True)
     portfolio_url = Column(String(500), nullable=True)
     additional_info = Column(Text, nullable=True)
     
     # Статус
-    # Changed from Enum to String to prevent "invalid input value" errors
-    # and allow simpler migrations for new statuses.
-    status = Column(String, default=ApplicationStatus.PENDING.value, index=True, nullable=False)
+    status = Column(Enum(ApplicationStatus), default=ApplicationStatus.SCREENING_PENDING, index=True, nullable=False)
     rejection_reason = Column(Text, nullable=True)  # Причина відхилення
     
     # Дати

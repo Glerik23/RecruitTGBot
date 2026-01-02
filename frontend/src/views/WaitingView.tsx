@@ -10,7 +10,7 @@ export const WaitingView: React.FC = () => {
     const { showToast } = useToast();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [selectedSlot, setSelectedSlot] = useState<{ interviewId: number, slotStart: string } | null>(null);
+    const [selectedSlot, setSelectedSlot] = useState<{ interviewId: number, slotId: number } | null>(null);
 
     const [activeTab, setActiveTab] = useState<'active' | 'archive'>('active');
 
@@ -39,7 +39,7 @@ export const WaitingView: React.FC = () => {
         try {
             await api.post('/candidate/interviews/select-slot', {
                 interview_id: selectedSlot.interviewId,
-                selected_date: selectedSlot.slotStart
+                slot_id: selectedSlot.slotId
             });
             tg?.HapticFeedback?.notificationOccurred('success');
             setSelectedSlot(null);
@@ -214,22 +214,22 @@ export const WaitingView: React.FC = () => {
                                         <div className="space-y-4">
                                             <p className="text-sm text-yellow-500 font-medium font-['Inter']">⚠️ Оберіть зручний час:</p>
                                             <div className="grid grid-cols-2 gap-2">
-                                                {[...(interview.available_slots || [])].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()).map((slot: any) => {
-                                                    const isSelected = selectedSlot?.interviewId === interview.id && selectedSlot?.slotStart === slot.start;
+                                                {[...(interview.slots || [])].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()).map((slot: any) => {
+                                                    const isSelected = selectedSlot?.interviewId === interview.id && selectedSlot?.slotId === slot.id;
                                                     return (
                                                         <button
-                                                            key={slot.start}
-                                                            onClick={() => setSelectedSlot({ interviewId: interview.id, slotStart: slot.start })}
+                                                            key={slot.id}
+                                                            onClick={() => setSelectedSlot({ interviewId: interview.id, slotId: slot.id })}
                                                             className={`p-3 text-xs border rounded-xl transition-all duration-300 flex flex-col items-center gap-1 ${isSelected
                                                                 ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30 scale-[1.05] z-10'
                                                                 : 'bg-white/10 text-white/90 border-white/10 hover:border-primary/50 hover:bg-white/15'
                                                                 }`}
                                                         >
                                                             <span className="font-black tracking-tight">
-                                                                {new Date(slot.start).toLocaleString('uk-UA', { day: 'numeric', month: 'short' })}
+                                                                {new Date(slot.start_time).toLocaleString('uk-UA', { day: 'numeric', month: 'short' })}
                                                             </span>
                                                             <span className="text-[10px] uppercase font-medium opacity-60">
-                                                                {new Date(slot.start).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
+                                                                {new Date(slot.start_time).toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
                                                             </span>
                                                         </button>
                                                     );

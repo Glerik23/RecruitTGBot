@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import List, Dict, Optional, Any
-from app.models.interview import Interview, InterviewType, LocationType
+from app.models.interview import Interview, InterviewType, LocationType, InterviewSlot
 from app.models.application import Application, ApplicationStatus
 from app.services.base_service import BaseService
 from app.utils.exceptions import BusinessError, InterviewNotFoundError
@@ -34,19 +34,29 @@ class InterviewService(BaseService[Interview]):
             candidate_id=app.candidate_id,
             interviewer_id=interviewer_id,
             interview_type=interview_type,
-            available_slots=available_slots,
             location_type=location_type,
             meet_link=details.get("meet_link") if details else None,
             address=details.get("address") if details else None,
             is_confirmed=False
         )
         db.add(interview)
-        
+        db.flush() # Get interview ID for slots
+
+        # Create Normalized Slots
+        for slot_data in available_slots:
+            slot = InterviewSlot(
+                interview_id=interview.id,
+                start_time=datetime.fromisoformat(slot_data['start'].replace('Z', '+00:00')),
+                end_time=datetime.fromisoformat(slot_data['end'].replace('Z', '+00:00')),
+                is_booked=False
+            )
+            db.add(slot)
+            
         # Update Application status
         if interview_type == InterviewType.HR_SCREENING:
-            app.status = ApplicationStatus.SCREENING_PENDING.value
+            app.status = ApplicationStatus.SCREENING_PENDING
         elif interview_type == InterviewType.TECHNICAL:
-            app.status = ApplicationStatus.TECH_PENDING.value 
+            app.status = ApplicationStatus.TECH_PENDING 
         
         db.commit()
         db.refresh(interview)
@@ -63,7 +73,7 @@ class InterviewService(BaseService[Interview]):
         db: Session,
         interview_id: int,
         user_id: int,
-        slot_start: datetime
+        slot_id: int
     ) -> Interview:
         """Кандидат обирає слот"""
         interview = db.query(Interview).get(interview_id)
@@ -73,15 +83,24 @@ class InterviewService(BaseService[Interview]):
         if interview.candidate_id != user_id:
             raise BusinessError("Not authorized to schedule this interview")
             
-        interview.selected_time = slot_start
+        slot = db.query(InterviewSlot).filter(
+            InterviewSlot.id == slot_id,
+            InterviewSlot.interview_id == interview_id
+        ).first()
+        
+        if not slot or slot.is_booked:
+            raise BusinessError("Selected slot is not available")
+            
+        interview.selected_time = slot.start_time
+        slot.is_booked = True
         
         # Auto-confirm if location details are already present
         if interview.location_type:
             interview.is_confirmed = True
             if interview.interview_type == InterviewType.HR_SCREENING:
-                interview.application.status = ApplicationStatus.SCREENING_SCHEDULED.value
+                interview.application.status = ApplicationStatus.SCREENING_SCHEDULED
             elif interview.interview_type == InterviewType.TECHNICAL:
-                interview.application.status = ApplicationStatus.TECH_SCHEDULED.value
+                interview.application.status = ApplicationStatus.TECH_SCHEDULED
         
         db.commit()
         db.refresh(interview)
@@ -111,9 +130,9 @@ class InterviewService(BaseService[Interview]):
         
         # Update app status to scheduled/confirmed
         if interview.interview_type == InterviewType.HR_SCREENING:
-            interview.application.status = ApplicationStatus.SCREENING_SCHEDULED.value
+            interview.application.status = ApplicationStatus.SCREENING_SCHEDULED
         elif interview.interview_type == InterviewType.TECHNICAL:
-            interview.application.status = ApplicationStatus.TECH_SCHEDULED.value
+            interview.application.status = ApplicationStatus.TECH_SCHEDULED
             
         db.commit()
         db.refresh(interview)

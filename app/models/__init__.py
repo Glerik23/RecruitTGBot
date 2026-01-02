@@ -1,7 +1,7 @@
 """Моделі бази даних"""
 from app.models.user import User, UserRole, InviteLink
 from app.models.application import Application, ApplicationStatus
-from app.models.interview import Interview, InterviewType
+from app.models.interview import Interview, InterviewType, InterviewSlot
 from app.models.feedback import Feedback
 
 __all__ = [
@@ -12,6 +12,7 @@ __all__ = [
     "ApplicationStatus",
     "Interview",
     "InterviewType",
+    "InterviewSlot",
     "Feedback",
 ]
 

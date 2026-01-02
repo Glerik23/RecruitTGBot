@@ -193,11 +193,11 @@ const renderSummary = (data: any, options: any) => (
             />
         </div>
 
-        <Card className="p-6 relative overflow-hidden group border-white/5 bg-secondary/10">
-            <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary/5 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/10 transition-all duration-700" />
+        <Card className="p-6 relative overflow-hidden group border-white/10 bg-secondary/40 shadow-xl">
+            <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/20 transition-all duration-700" />
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-black italic uppercase tracking-tight">ДИНАМІКА ПОДАЧ</h2>
-                <Badge variant="pending" className="text-[10px]">7 днів</Badge>
+                <h2 className="text-lg font-black italic uppercase tracking-tight text-white/90">ДИНАМІКА ПОДАЧ</h2>
+                <Badge variant="pending" className="text-[10px] bg-primary/20 text-primary border-primary/30">7 днів</Badge>
             </div>
             <div className="h-56">
                 <Line
@@ -225,9 +225,9 @@ const renderSummary = (data: any, options: any) => (
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="p-5 bg-secondary/10 border-white/5">
-                <h3 className="text-[10px] font-black uppercase tracking-widest mb-4 opacity-50 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> РОЗПОДІЛ СТАТУСІВ
+            <Card className="p-5 bg-secondary/30 border-white/10 shadow-lg">
+                <h3 className="text-[10px] font-black uppercase tracking-widest mb-4 text-white/60 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]" /> РОЗПОДІЛ СТАТУСІВ
                 </h3>
                 <div className="h-56">
                     <Doughnut
@@ -246,9 +246,9 @@ const renderSummary = (data: any, options: any) => (
                 </div>
             </Card>
 
-            <Card className="p-5 bg-secondary/10 border-white/5">
-                <h3 className="text-[10px] font-black uppercase tracking-widest mb-4 opacity-50 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary" /> АКТИВНІ ПОЗИЦІЇ
+            <Card className="p-5 bg-secondary/30 border-white/10 shadow-lg">
+                <h3 className="text-[10px] font-black uppercase tracking-widest mb-4 text-white/60 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(51,144,236,0.5)]" /> АКТИВНІ ПОЗИЦІЇ
                 </h3>
                 <div className="h-56">
                     <Bar
@@ -273,11 +273,11 @@ const renderSummary = (data: any, options: any) => (
 
 const renderFunnel = (data: any) => (
     <div className="space-y-6 animate-fadeIn">
-        <Card className="p-6 bg-secondary/10 border-white/5 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+        <Card className="p-6 bg-secondary/40 border-white/20 shadow-2xl relative overflow-hidden backdrop-blur-md">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.05] pointer-events-none">
                 <span className="text-9xl">🌪️</span>
             </div>
-            <h2 className="text-lg font-black italic uppercase tracking-tight mb-8">ВОРОНКА РЕКРУТИНГУ</h2>
+            <h2 className="text-lg font-black italic uppercase tracking-tight mb-8 text-white drop-shadow-sm">ВОРОНКА РЕКРУТИНГУ</h2>
             <div className="space-y-8 relative">
                 <FunnelStep
                     label="Всього заявок"
@@ -288,58 +288,60 @@ const renderFunnel = (data: any) => (
                 />
                 <FunnelStep
                     label="Прийнято в роботу"
-                    count={data.conversion_metrics.accepted}
-                    percentage={data.conversion_metrics.application_to_accepted}
-                    textColor="text-blue-500"
+                    count={data.conversion_metrics.started_processing}
+                    percentage={data.conversion_metrics.application_to_processing}
+                    textColor="text-blue-400"
                     icon="📂"
                 />
                 <FunnelStep
-                    label="Призначено співбесід"
-                    count={data.conversion_metrics.interviews}
-                    percentage={data.conversion_metrics.application_to_interview}
-                    textColor="text-purple-500"
-                    icon="👥"
+                    label="Допущено до тех-етапу"
+                    count={data.conversion_metrics.reached_tech}
+                    percentage={data.conversion_metrics.processing_to_tech}
+                    textColor="text-purple-400"
+                    icon="⚙️"
                 />
                 <FunnelStep
                     label="Найнято кандидатів"
                     count={data.conversion_metrics.hired}
-                    percentage={data.conversion_metrics.application_to_hired}
-                    textColor="text-green-500"
+                    percentage={data.conversion_metrics.tech_to_hired}
+                    textColor="text-green-400"
                     icon="🎉"
                     isLast
+                    subLabel="Overall: "
+                    subPercentage={data.conversion_metrics.overall_conversion}
                 />
             </div>
         </Card>
 
         <div className="grid grid-cols-2 gap-4">
-            <div className="bg-secondary/20 p-5 rounded-3xl space-y-2 border border-white/5 hover:bg-white/5 transition-colors">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Ефективність інтерв'ю</p>
-                <div className="text-2xl font-black text-primary font-mono">{data.conversion_metrics.interview_to_hired}%</div>
-                <p className="text-[10px] leading-tight text-white/40">Кандидатів отримує офер після підтвердження зустрічі</p>
+            <div className="bg-secondary/40 p-6 rounded-3xl space-y-2 border border-white/20 hover:bg-white/10 transition-colors shadow-xl backdrop-blur-sm">
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/90">Ефективність інтерв'ю</p>
+                <div className="text-3xl font-black text-primary font-mono drop-shadow-sm">{data.interviews.confirmation_rate}%</div>
+                <p className="text-[11px] leading-tight text-white/70">Кандидатів отримує офер після підтвердження зустрічі</p>
             </div>
-            <div className="bg-secondary/20 p-5 rounded-3xl space-y-2 border border-white/5 hover:bg-white/5 transition-colors">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Час на розгляд</p>
-                <div className="text-2xl font-black text-primary font-mono">{data.time_to_review.average_hours}г</div>
-                <p className="text-[10px] leading-tight text-white/40">Середній час від подачі до першої зміни статусу</p>
+            <div className="bg-secondary/40 p-6 rounded-3xl space-y-2 border border-white/20 hover:bg-white/10 transition-colors shadow-xl backdrop-blur-sm">
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/90">Час на розгляд</p>
+                <div className="text-3xl font-black text-primary font-mono drop-shadow-sm">{data.time_to_review.average_hours}г</div>
+                <p className="text-[11px] leading-tight text-white/70">Середній час від подачі до першої зміни статусу</p>
             </div>
         </div>
 
         {data.rejection_reasons && (
-            <Card className="p-6 bg-secondary/10 border-white/5">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-6 opacity-60 flex items-center gap-2">
-                    <span className="text-red-500">🚫</span> ПРИЧИНИ ВІДМОВ
+            <Card className="p-6 bg-secondary/40 border-white/20 shadow-2xl backdrop-blur-md">
+                <h3 className="text-sm font-black uppercase tracking-[0.1em] mb-6 text-white flex items-center gap-2">
+                    <span className="text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)] text-lg">🚫</span> ПРИЧИНИ ВІДМОВ
                 </h3>
-                <div className="space-y-4">
+                <div className="space-y-5">
                     {Object.entries(data.rejection_reasons).map(([reason, count]: any) => (
                         <div key={reason} className="flex items-center gap-4 group">
-                            <div className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors capitalize">{reason}</div>
-                            <div className="w-32 bg-secondary/40 h-1.5 rounded-full overflow-hidden">
+                            <div className="flex-1 text-xs font-black text-white group-hover:text-primary transition-colors capitalize drop-shadow-sm">{reason}</div>
+                            <div className="w-32 bg-black/40 h-2 rounded-full overflow-hidden border border-white/5 shadow-inner">
                                 <div
-                                    className="h-full bg-red-500/50 rounded-full group-hover:bg-red-500 transition-all duration-500"
+                                    className="h-full bg-gradient-to-r from-red-500/50 to-red-500 rounded-full group-hover:from-red-500 group-hover:to-red-400 transition-all duration-500"
                                     style={{ width: `${(count / (Object.values(data.rejection_reasons).reduce((a: any, b: any) => a + (b as number), 0) as number) || 1) * 100}%` }}
                                 />
                             </div>
-                            <div className="text-[10px] font-black font-mono w-6 text-right text-white/40 group-hover:text-red-500 transition-colors">{count}</div>
+                            <div className="text-xs font-black font-mono w-8 text-right text-white group-hover:text-red-500 transition-colors drop-shadow-sm">{count}</div>
                         </div>
                     ))}
                 </div>
@@ -348,22 +350,24 @@ const renderFunnel = (data: any) => (
     </div>
 );
 
-const FunnelStep = ({ label, count, percentage, textColor, icon, isLast }: any) => (
+const FunnelStep = ({ label, count, percentage, textColor, icon, isLast, subLabel, subPercentage }: any) => (
     <div className="relative">
-        <div className={`p-5 rounded-2xl border border-white/5 flex justify-between items-center transition-all hover:bg-white/5 group relative z-10 bg-black/20 backdrop-blur-sm shadow-xl`}>
+        <div className={`p-6 rounded-3xl border border-white/20 flex justify-between items-center transition-all hover:bg-white/[0.08] group relative z-10 bg-secondary/40 backdrop-blur-md shadow-2xl`}>
             <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-xl group-hover:scale-110 transition-transform`}>
+                <div className={`w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-lg border border-white/10`}>
                     {icon}
                 </div>
-                <div className="space-y-0.5">
-                    <p className="text-[10px] uppercase font-black opacity-30 tracking-[0.1em] font-mono">{label}</p>
-                    <p className="text-2xl font-black font-mono">{count}</p>
+                <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-black text-white tracking-[0.1em] font-mono drop-shadow-sm">{label}</p>
+                    <p className="text-3xl font-black font-mono text-white drop-shadow-sm">{count}</p>
                 </div>
             </div>
             <div className={`text-right ${textColor}`}>
-                <p className="text-2xl font-black font-mono tracking-tighter">{percentage}%</p>
-                <div className="flex items-center justify-end gap-1 opacity-40">
-                    <span className="text-[8px] uppercase font-black tracking-widest">Conversion</span>
+                <p className="text-3xl font-black font-mono tracking-tighter drop-shadow-sm">{percentage}%</p>
+                <div className="flex items-center justify-end gap-1">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-white drop-shadow-sm">
+                        {subLabel ? `${subLabel}${subPercentage}%` : "Step Conversion"}
+                    </span>
                 </div>
             </div>
         </div>
@@ -380,24 +384,24 @@ const FunnelStep = ({ label, count, percentage, textColor, icon, isLast }: any) 
 const renderHRPerformance = (data: any) => (
     <div className="space-y-6 animate-fadeIn">
         <div className="grid grid-cols-3 gap-3">
-            <div className="bg-primary/5 p-5 rounded-3xl border border-primary/10 text-center hover:bg-primary/10 transition-colors">
-                <p className="text-2xl font-black text-primary font-mono">{data.hr_activity.total_reviewed}</p>
-                <p className="text-[8px] uppercase font-black tracking-widest opacity-40 mt-1">Опрацьовано</p>
+            <div className="bg-primary/10 p-5 rounded-3xl border border-primary/20 text-center hover:bg-primary/15 transition-colors shadow-lg backdrop-blur-sm">
+                <p className="text-3xl font-black text-primary font-mono drop-shadow-sm">{data.hr_activity.total_reviewed}</p>
+                <p className="text-[10px] uppercase font-black tracking-widest text-white mt-1.5 drop-shadow-sm">Опрацьовано</p>
             </div>
-            <div className="bg-green-500/5 p-5 rounded-3xl border border-green-500/10 text-center hover:bg-green-500/10 transition-colors">
-                <p className="text-2xl font-black text-green-500 font-mono">{data.hr_activity.overall_acceptance_rate}%</p>
-                <p className="text-[8px] uppercase font-black tracking-widest opacity-40 mt-1">Accept Rate</p>
+            <div className="bg-green-500/10 p-5 rounded-3xl border border-green-500/20 text-center hover:bg-green-500/15 transition-colors shadow-lg backdrop-blur-sm">
+                <p className="text-3xl font-black text-green-500 font-mono drop-shadow-sm">{data.hr_activity.overall_acceptance_rate}%</p>
+                <p className="text-[10px] uppercase font-black tracking-widest text-white mt-1.5 drop-shadow-sm">Accept Rate</p>
             </div>
-            <div className="bg-purple-500/5 p-5 rounded-3xl border border-purple-500/10 text-center hover:bg-purple-500/10 transition-colors">
-                <p className="text-2xl font-black text-purple-500 font-mono">{data.hr_activity.total_hr_count}</p>
-                <p className="text-[8px] uppercase font-black tracking-widest opacity-40 mt-1">Recruiters</p>
+            <div className="bg-purple-500/10 p-5 rounded-3xl border border-purple-500/20 text-center hover:bg-purple-500/15 transition-colors shadow-lg backdrop-blur-sm">
+                <p className="text-3xl font-black text-purple-500 font-mono drop-shadow-sm">{data.hr_activity.total_hr_count}</p>
+                <p className="text-[10px] uppercase font-black tracking-widest text-white mt-1.5 drop-shadow-sm">Recruiters</p>
             </div>
         </div>
 
-        <Card className="overflow-hidden border-white/5 bg-secondary/10 shadow-2xl">
-            <div className="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Рейтинг активності HR</h3>
-                <Badge variant="secondary" className="text-[8px] opacity-40">KPI Ranking</Badge>
+        <Card className="overflow-hidden border-white/20 bg-secondary/40 shadow-2xl backdrop-blur-md">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.06]">
+                <h3 className="text-sm font-black uppercase tracking-[0.1em] text-white">Рейтинг активності HR</h3>
+                <Badge variant="secondary" className="text-[10px] bg-white text-black font-bold border-white px-3 py-0.5">KPI Ranking</Badge>
             </div>
             <div className="divide-y divide-white/5">
                 {data.hr_activity.hr_details.map((hr: any, idx: number) => (
@@ -407,15 +411,15 @@ const renderHRPerformance = (data: any) => (
                         </div>
                         <div className="flex-1 space-y-1">
                             <h4 className="font-black text-sm text-white/90 group-hover:text-white transition-colors">{hr.hr_name}</h4>
-                            <div className="flex gap-3 text-[10px] font-bold opacity-40 tracking-tight">
-                                <span className="text-green-500/60">✅ {hr.accepted}</span>
-                                <span className="text-red-500/60">🚫 {hr.rejected}</span>
-                                <span className="font-mono">⏱️ {hr.avg_review_time_hours}г</span>
+                            <div className="flex gap-4 text-xs font-black tracking-tight mt-1">
+                                <span className="text-green-400 flex items-center gap-1 bg-green-500/10 px-2 py-0.5 rounded-lg border border-green-500/20 shadow-sm">✅ {hr.accepted}</span>
+                                <span className="text-red-400 flex items-center gap-1 bg-red-500/10 px-2 py-0.5 rounded-lg border border-red-500/20 shadow-sm">🚫 {hr.rejected}</span>
+                                <span className="text-white flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-lg border border-white/10 shadow-sm font-mono">⏱️ {hr.avg_review_time_hours}г</span>
                             </div>
                         </div>
                         <div className="text-right">
-                            <p className="text-xl font-black font-mono tracking-tighter group-hover:text-primary transition-colors">{hr.reviewed}</p>
-                            <p className="text-[8px] uppercase font-black tracking-widest opacity-30">Reviewed</p>
+                            <p className="text-2xl font-black font-mono tracking-tighter group-hover:text-primary transition-colors text-white">{hr.reviewed}</p>
+                            <p className="text-[10px] uppercase font-black tracking-widest text-white drop-shadow-sm">Review</p>
                         </div>
                     </div>
                 ))}
@@ -465,12 +469,14 @@ const renderCandidateProfile = (data: any, options: any, radarOptions: any) => (
                                     data.english_level['C2'] || 0,
                                     data.english_level['Не вказано'] || 0,
                                 ],
-                                backgroundColor: 'rgba(51, 144, 236, 0.1)',
-                                borderColor: 'rgba(51, 144, 236, 0.8)',
-                                borderWidth: 3,
+                                backgroundColor: 'rgba(51, 144, 236, 0.2)',
+                                borderColor: 'rgba(51, 144, 236, 0.9)',
+                                borderWidth: 3.5,
                                 pointBackgroundColor: '#3390ec',
                                 pointBorderColor: '#fff',
-                                pointHoverRadius: 5
+                                pointHoverRadius: 7,
+                                pointHoverBackgroundColor: '#fff',
+                                pointHoverBorderColor: '#3390ec'
                             }]
                         }}
                     />
@@ -510,21 +516,21 @@ const renderCandidateProfile = (data: any, options: any, radarOptions: any) => (
 );
 
 const MetricCard = ({ icon, value, label, trend, color = '', labelClassName = '' }: any) => (
-    <Card className="flex flex-col items-center justify-center p-5 hover:scale-[1.02] transition-transform relative overflow-hidden group text-center min-h-[150px] bg-secondary/10 border-white/5 shadow-inner">
-        <div className="text-3xl mb-2 drop-shadow-md group-hover:scale-110 transition-transform duration-300">
+    <Card className="flex flex-col items-center justify-center p-5 hover:scale-[1.02] active:scale-[0.98] transition-all relative overflow-hidden group text-center min-h-[150px] bg-secondary/40 border-white/10 shadow-xl backdrop-blur-sm">
+        <div className="text-4xl mb-3 drop-shadow-[0_4px_12px_rgba(255,255,255,0.1)] group-hover:scale-110 transition-transform duration-300">
             {icon}
         </div>
         <div className="flex flex-col items-center z-10">
-            <div className={`text-3xl font-black font-mono tracking-tighter ${color || 'text-white'}`}>{value}</div>
-            <div className={`text-[10px] uppercase font-black tracking-widest leading-tight mt-1 ${labelClassName || 'text-white/70'}`}>
+            <div className={`text-4xl font-black font-mono tracking-tighter ${color || 'text-white'} drop-shadow-sm`}>{value}</div>
+            <div className={`text-[11px] uppercase font-black tracking-widest leading-tight mt-2 ${labelClassName || 'text-white/80'}`}>
                 {label}
             </div>
             {trend && (
-                <div className="mt-2 text-[9px] font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
+                <div className="mt-3 text-[10px] font-bold text-green-400 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20 shadow-sm">
                     {trend}
                 </div>
             )}
         </div>
-        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent pointer-events-none" />
     </Card>
 );
